@@ -72,6 +72,20 @@ st.markdown(
     [data-testid="stVerticalBlock"] {gap:0.35rem;}
     [data-testid="stHorizontalBlock"] {gap:0.65rem;}
     .stDownloadButton button {height:2.35rem; width:100%;}
+    .st-key-survey_navigation_map .modebar {
+        top:8px !important; right:8px !important; left:auto !important;
+        display:flex !important; flex-direction:column !important;
+        background:rgba(255,255,255,.92) !important;
+        border:1px solid #dfe5ea; border-radius:8px; padding:3px !important;
+        box-shadow:0 1px 4px rgba(23,33,43,.12);
+    }
+    .st-key-survey_navigation_map .modebar-group {
+        display:flex !important; flex-direction:column !important;
+        padding:0 !important;
+    }
+    .st-key-survey_navigation_map .modebar-btn {padding:4px !important;}
+    .st-key-survey_navigation_map .modebar-btn path {fill:#34495e !important;}
+    .st-key-survey_navigation_map .modebar-btn:hover {background:#edf3f6 !important; border-radius:5px;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -129,7 +143,7 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
             hover_name="ID",
             hover_data=hover,
             zoom=15,
-            height=585,
+            height=525,
         )
         fig.update_coloraxes(colorbar_title="Elevation")
     else:
@@ -142,7 +156,7 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
             hover_name="ID",
             hover_data=hover,
             zoom=15,
-            height=585,
+            height=525,
         )
         fig.update_layout(legend_title_text="Feature code")
 
@@ -188,7 +202,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-filter_code, filter_elevation, filter_colour, filter_basemap = st.columns([2.1, 2.1, 1.2, 1.45])
+filter_code, filter_elevation = st.columns([1, 1])
 with filter_code:
     code_options = sorted(points["Code"].unique().tolist())
     selected_codes = st.multiselect(
@@ -209,6 +223,7 @@ with filter_elevation:
         step=0.1,
         format="%.1f",
     )
+filter_colour, filter_basemap = st.columns([1, 1])
 with filter_colour:
     colour_by = st.selectbox("Map colouring", ["Elevation", "Feature code"])
 with filter_basemap:
@@ -228,20 +243,20 @@ if filtered.empty:
 
 metric_cols = st.columns(5)
 metric_cols[0].metric("Survey points", f"{len(filtered):,}")
-metric_cols[1].metric("Feature codes", f"{filtered['Code'].nunique():,}")
+metric_cols[1].metric("Codes", f"{filtered['Code'].nunique():,}")
 metric_cols[2].metric("Min elevation", f"{filtered['Elevation'].min():.2f}")
-metric_cols[3].metric("Median elevation", f"{filtered['Elevation'].median():.2f}")
+metric_cols[3].metric("Median elev.", f"{filtered['Elevation'].median():.2f}")
 metric_cols[4].metric("Max elevation", f"{filtered['Elevation'].max():.2f}")
 
 map_col, diagnostic_col = st.columns([2.3, 1], vertical_alignment="top")
 with map_col:
     st.subheader("Full survey extent")
+    st.caption("Wheel zoom · Drag pan · Toolbar: zoom, reset, fullscreen, export")
     st.plotly_chart(
         map_figure(filtered, colour_by, basemap_label),
         config=MAP_CONFIG,
         key="survey_navigation_map",
     )
-    st.caption("Wheel: zoom · Drag: pan · Toolbar: zoom, reset, fullscreen, export · EPSG:32643 → WGS 84")
 
 with diagnostic_col:
     st.subheader("Diagnostics")

@@ -32,6 +32,19 @@ ARCGIS_TILES = {
     "ArcGIS Streets": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
 }
 
+MAP_CONFIG = {
+    "scrollZoom": True,
+    "displayModeBar": True,
+    "displaylogo": False,
+    "responsive": True,
+    "modeBarButtonsToRemove": ["select2d", "lasso2d"],
+    "toImageButtonOptions": {
+        "format": "png",
+        "filename": "mumbai_survey_webmap",
+        "scale": 2,
+    },
+}
+
 
 st.set_page_config(
     page_title="Mumbai Survey Web Map",
@@ -150,6 +163,8 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
         map=map_layout,
         map_bounds={"west": data.longitude.min(), "east": data.longitude.max(),
                     "south": data.latitude.min(), "north": data.latitude.max()},
+        dragmode="pan",
+        uirevision="preserve-map-view",
         margin={"l": 0, "r": 0, "t": 0, "b": 0},
         paper_bgcolor="white",
         font={"color": INK},
@@ -221,8 +236,12 @@ metric_cols[4].metric("Max elevation", f"{filtered['Elevation'].max():.2f}")
 map_col, diagnostic_col = st.columns([2.3, 1], vertical_alignment="top")
 with map_col:
     st.subheader("Full survey extent")
-    st.plotly_chart(map_figure(filtered, colour_by, basemap_label))
-    st.caption("Confirmed EPSG:32643; transformed to WGS 84 for web display.")
+    st.plotly_chart(
+        map_figure(filtered, colour_by, basemap_label),
+        config=MAP_CONFIG,
+        key="survey_navigation_map",
+    )
+    st.caption("Wheel: zoom · Drag: pan · Toolbar: zoom, reset, fullscreen, export · EPSG:32643 → WGS 84")
 
 with diagnostic_col:
     st.subheader("Diagnostics")

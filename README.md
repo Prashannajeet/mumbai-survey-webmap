@@ -34,6 +34,8 @@ Open <http://localhost:8501>.
 - Full-area interactive web map with elevation or feature-code colouring.
 - OpenStreetMap, light, ArcGIS World Imagery, ArcGIS Topographic, and ArcGIS
   Streets basemaps.
+- Mouse-wheel zoom, drag-to-pan, zoom in/out, reset, fullscreen, and PNG export
+  controls with the map view preserved across dashboard reruns.
 - Feature-code and elevation filters shared across the dashboard.
 - Elevation distribution and feature-code ranking.
 - Data-quality guardrails and downloadable filtered records.

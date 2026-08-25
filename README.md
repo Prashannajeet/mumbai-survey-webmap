@@ -60,3 +60,5 @@ Open <http://localhost:8501>.
   `ID`, `Northing`, `Easting`, `Elevation`, and `Code`; coordinates are treated
   as EPSG:32643 and transformed for web mapping in memory. The bundled survey
   can be restored from the same tool.
+- Automatic upload duplicate checks for exact rows, repeated IDs, and repeated
+  coordinate pairs, with a downloadable CSV report of all flagged records.

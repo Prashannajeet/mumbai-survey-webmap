@@ -168,6 +168,35 @@ def load_uploaded_csv(raw: bytes) -> pd.DataFrame:
     return frame
 
 
+def duplicate_audit(frame: pd.DataFrame) -> tuple[dict[str, int], pd.DataFrame]:
+    comparison_columns = ["ID", "Northing", "Easting", "Elevation", "Code"]
+    exact_mask = frame.duplicated(subset=comparison_columns, keep=False)
+    coordinate_mask = frame.duplicated(subset=["Easting", "Northing"], keep=False)
+    valid_ids = frame["ID"].fillna("").astype(str).str.strip().ne("")
+    id_mask = valid_ids & frame.duplicated(subset=["ID"], keep=False)
+
+    reasons = pd.Series("", index=frame.index, dtype="string")
+    for mask, label in [
+        (exact_mask, "Exact row"),
+        (id_mask, "Repeated ID"),
+        (coordinate_mask, "Repeated coordinates"),
+    ]:
+        reasons.loc[mask] = reasons.loc[mask].apply(
+            lambda current: f"{current}; {label}" if current else label
+        )
+
+    report_columns = ["row_number", *comparison_columns, "latitude", "longitude"]
+    report = frame.loc[reasons.ne(""), report_columns].copy()
+    report.insert(1, "Duplicate_reason", reasons.loc[reasons.ne("")])
+    counts = {
+        "exact_rows": int(exact_mask.sum()),
+        "repeated_id_rows": int(id_mask.sum()),
+        "repeated_coordinate_rows": int(coordinate_mask.sum()),
+        "flagged_rows": int(reasons.ne("").sum()),
+    }
+    return counts, report
+
+
 def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
     hover = {
         "ID": True,
@@ -244,10 +273,13 @@ except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
 
 active_source = "Bundled survey"
 upload_error = None
+upload_duplicate_counts = None
+upload_duplicate_report = None
 pending_upload = st.session_state.get("uploaded_dataset")
 if pending_upload is not None:
     try:
         points = load_uploaded_csv(pending_upload.getvalue())
+        upload_duplicate_counts, upload_duplicate_report = duplicate_audit(points)
         active_source = pending_upload.name
     except (ValueError, UnicodeDecodeError, pd.errors.ParserError) as exc:
         upload_error = str(exc)
@@ -302,6 +334,22 @@ with filter_upload:
             st.error(upload_error)
         elif pending_upload is not None:
             st.success(f"Active: {pending_upload.name} ({len(points):,} valid rows)")
+            if upload_duplicate_counts["flagged_rows"]:
+                st.warning(
+                    f"{upload_duplicate_counts['flagged_rows']:,} rows need review · "
+                    f"Exact: {upload_duplicate_counts['exact_rows']:,} · "
+                    f"Repeated IDs: {upload_duplicate_counts['repeated_id_rows']:,} · "
+                    f"Repeated coordinates: {upload_duplicate_counts['repeated_coordinate_rows']:,}"
+                )
+                st.download_button(
+                    "Download duplicate report",
+                    data=upload_duplicate_report.to_csv(index=False).encode("utf-8"),
+                    file_name="survey_duplicate_report.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+            else:
+                st.info("Duplicate check passed: no repeated rows, IDs, or coordinates.")
         if st.button("Use bundled dataset", use_container_width=True):
             st.session_state["uploaded_dataset"] = None
             st.rerun()
@@ -377,14 +425,12 @@ with diagnostic_col:
     bars.update_traces(textposition="outside", cliponaxis=False)
     st.plotly_chart(bars)
 
-    exact_duplicates = int(
-        points.duplicated(subset=["ID", "Northing", "Easting", "Elevation", "Code"]).sum()
-    )
-    repeated_coordinates = int(points.duplicated(subset=["Easting", "Northing"]).sum())
+    quality_counts, _ = duplicate_audit(points)
     st.caption(
         f"Complete: {len(points):,} · "
-        f"Exact duplicates: {exact_duplicates:,} · "
-        f"Repeated coordinates: {repeated_coordinates:,}"
+        f"Exact duplicate rows: {quality_counts['exact_rows']:,} · "
+        f"Repeated IDs: {quality_counts['repeated_id_rows']:,} · "
+        f"Repeated coordinates: {quality_counts['repeated_coordinate_rows']:,}"
     )
 
     detail_columns = ["ID", "Code", "Elevation", "Easting", "Northing", "latitude", "longitude"]

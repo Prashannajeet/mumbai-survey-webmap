@@ -33,9 +33,6 @@ Open <http://localhost:8501>.
 
 - Full-area interactive web map with elevation or feature-code colouring.
 - Feature-code and elevation filters shared across the dashboard.
-- Exploratory smoothed elevation surface.
 - Elevation distribution and feature-code ranking.
 - Data-quality guardrails and downloadable filtered records.
-
-The elevation surface is exploratory and should not be interpreted as a
-hydraulic flood model or engineering contour product.
+- Single-canvas layout with top controls and no sidebar or tab frames.

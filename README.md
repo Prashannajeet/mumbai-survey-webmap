@@ -4,6 +4,18 @@ Interactive Streamlit dashboard for the 23 August 2026 Mumbai/Kurla survey.
 The spatial analysis and GIS exports are generated in R; Streamlit reads the
 resulting GeoJSON for interactive exploration.
 
+## Deploy online with Streamlit
+
+1. Open [Streamlit Community Cloud](https://share.streamlit.io/) and sign in
+   with GitHub.
+2. Select **Create app** and choose this GitHub repository.
+3. Set the branch to `main` and the entrypoint to `app.py`.
+4. Select **Deploy**. No secrets or external database are required.
+
+The committed GeoJSON is the default online dataset. The **Update CSV** tool
+supports temporary browser-session updates; uploaded data is not written back
+to GitHub or retained after the session ends.
+
 ## Coordinate system
 
 The confirmed source CRS is **WGS 84 / UTM Zone 43N (EPSG:32643)**. The R

@@ -47,7 +47,9 @@ Open <http://localhost:8501>.
 - OpenStreetMap, light, ArcGIS World Imagery, ArcGIS Topographic, and ArcGIS
   Streets basemaps.
 - Mouse-wheel zoom, drag-to-pan, zoom in/out, reset, fullscreen, and PNG export
-  controls with the map view preserved across dashboard reruns.
+  controls with the map view preserved across dashboard reruns. The initial
+  view includes wider surrounding context and zoom-out is not restricted to
+  the survey bounds.
 - Feature-code and elevation filters shared across the dashboard.
 - Elevation distribution and feature-code ranking.
 - Data-quality guardrails and downloadable filtered records.

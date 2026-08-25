@@ -38,6 +38,8 @@ ARCGIS_TILES = {
     "ArcGIS Streets": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
 }
 
+INITIAL_MAP_ZOOM = 13.2
+
 MAP_CONFIG = {
     "scrollZoom": True,
     "displayModeBar": True,
@@ -219,7 +221,7 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
             ],
             hover_name="ID",
             hover_data=hover,
-            zoom=15,
+            zoom=INITIAL_MAP_ZOOM,
             height=525,
         )
         fig.update_coloraxes(colorbar_title="Elevation")
@@ -232,16 +234,28 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
             color_discrete_map=CODE_COLOURS,
             hover_name="ID",
             hover_data=hover,
-            zoom=15,
+            zoom=INITIAL_MAP_ZOOM,
             height=525,
         )
         fig.update_layout(legend_title_text="Feature code")
 
     fig.update_traces(marker={"size": 9, "opacity": 0.88})
-    map_layout = {"style": "open-street-map" if basemap == "OpenStreetMap" else "carto-positron"}
+    map_layout = {
+        "style": "open-street-map" if basemap == "OpenStreetMap" else "carto-positron",
+        "center": {
+            "lat": float(data["latitude"].mean()),
+            "lon": float(data["longitude"].mean()),
+        },
+        "zoom": INITIAL_MAP_ZOOM,
+    }
     if basemap in ARCGIS_TILES:
         map_layout = {
             "style": "white-bg",
+            "center": {
+                "lat": float(data["latitude"].mean()),
+                "lon": float(data["longitude"].mean()),
+            },
+            "zoom": INITIAL_MAP_ZOOM,
             "layers": [{
                 "below": "traces",
                 "sourcetype": "raster",
@@ -252,8 +266,6 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
 
     fig.update_layout(
         map=map_layout,
-        map_bounds={"west": data.longitude.min(), "east": data.longitude.max(),
-                    "south": data.latitude.min(), "north": data.latitude.max()},
         dragmode="pan",
         uirevision="preserve-map-view",
         margin={"l": 0, "r": 0, "t": 0, "b": 0},

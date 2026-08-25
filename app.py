@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from pyproj import Transformer
 
 
 ROOT = Path(__file__).resolve().parent
 GEOJSON_PATH = ROOT / "output" / "mumbai_survey_points.geojson"
-PROFILE_PATH = ROOT / "output" / "data_quality_profile.csv"
 SOURCE_CRS = "WGS 84 / UTM Zone 43N (EPSG:32643)"
+WEB_CRS = "WGS 84 (EPSG:4326)"
+UTM_TO_WGS84 = Transformer.from_crs(32643, 4326, always_xy=True)
 
 BLUE = "#176B87"
 ORANGE = "#D98E04"
@@ -136,8 +139,33 @@ def load_points(path: str) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
-def load_profile(path: str) -> pd.DataFrame:
-    return pd.read_csv(path)
+def load_uploaded_csv(raw: bytes) -> pd.DataFrame:
+    frame = pd.read_csv(BytesIO(raw))
+    normalized = {str(column).strip().lower(): column for column in frame.columns}
+    required_names = ["id", "northing", "easting", "elevation", "code"]
+    missing = [name for name in required_names if name not in normalized]
+    if missing:
+        raise ValueError(f"CSV is missing required columns: {', '.join(missing)}")
+
+    frame = frame.rename(columns={normalized[name]: name.title() for name in required_names})
+    frame["ID"] = frame["Id"].astype("string").fillna("").str.strip()
+    frame = frame.drop(columns=["Id"])
+    for column in ["Northing", "Easting", "Elevation"]:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    frame["Code"] = frame["Code"].astype("string").fillna("(missing)").str.strip().str.upper()
+    frame = frame.dropna(subset=["Northing", "Easting", "Elevation"])
+    if frame.empty:
+        raise ValueError("CSV contains no valid coordinate and elevation rows.")
+    if not frame["Easting"].between(100000, 900000).all() or not frame["Northing"].between(0, 10000000).all():
+        raise ValueError("Coordinates are outside valid UTM ranges for EPSG:32643.")
+
+    longitude, latitude = UTM_TO_WGS84.transform(frame["Easting"].to_numpy(), frame["Northing"].to_numpy())
+    frame["longitude"] = longitude
+    frame["latitude"] = latitude
+    top_codes = frame["Code"].value_counts().head(5).index
+    frame["Code_group"] = frame["Code"].where(frame["Code"].isin(top_codes), "Other / rare")
+    frame["row_number"] = range(1, len(frame) + 1)
+    return frame
 
 
 def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
@@ -209,16 +237,25 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
 
 try:
     points = load_points(str(GEOJSON_PATH))
-    profile = load_profile(str(PROFILE_PATH))
 except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
     st.error(f"Dashboard data could not be loaded: {exc}")
     st.info("Run `Rscript mumbai_survey_analysis.R` to regenerate the GIS outputs.")
     st.stop()
 
+active_source = "Bundled survey"
+upload_error = None
+pending_upload = st.session_state.get("uploaded_dataset")
+if pending_upload is not None:
+    try:
+        points = load_uploaded_csv(pending_upload.getvalue())
+        active_source = pending_upload.name
+    except (ValueError, UnicodeDecodeError, pd.errors.ParserError) as exc:
+        upload_error = str(exc)
+
 st.markdown(
     f'<div class="dashboard-hero"><div><div class="dashboard-title">Mumbai Survey Web Map</div>'
-    f'<div class="dashboard-meta">Survey dated 23 Aug 2026 · {SOURCE_CRS} · {len(points):,} mapped records</div>'
-    f'</div><div class="status-pill">● GIS READY</div></div><div class="hero-spacer"></div>',
+    f'<div class="dashboard-meta">{active_source} · {SOURCE_CRS} · {len(points):,} mapped records</div>'
+    f'</div><div class="status-pill">● LIVE DATA</div></div><div class="hero-spacer"></div>',
     unsafe_allow_html=True,
 )
 
@@ -243,7 +280,7 @@ with filter_elevation:
         step=0.1,
         format="%.1f",
     )
-filter_colour, filter_basemap = st.columns([1, 1])
+filter_colour, filter_basemap, filter_upload = st.columns([1, 1, 0.58])
 with filter_colour:
     colour_by = st.selectbox("Map colouring", ["Elevation", "Feature code"])
 with filter_basemap:
@@ -251,6 +288,23 @@ with filter_basemap:
         "Basemap",
         ["OpenStreetMap", "Light", "ArcGIS Imagery", "ArcGIS Topographic", "ArcGIS Streets"],
     )
+with filter_upload:
+    st.markdown("<div style='height:1.52rem'></div>", unsafe_allow_html=True)
+    with st.popover("↥ Update CSV", use_container_width=True):
+        st.file_uploader(
+            "Survey CSV",
+            type=["csv"],
+            key="uploaded_dataset",
+            help="Expected coordinates: WGS 84 / UTM Zone 43N (EPSG:32643).",
+        )
+        st.caption("Required: ID, Northing, Easting, Elevation, Code")
+        if upload_error:
+            st.error(upload_error)
+        elif pending_upload is not None:
+            st.success(f"Active: {pending_upload.name} ({len(points):,} valid rows)")
+        if st.button("Use bundled dataset", use_container_width=True):
+            st.session_state["uploaded_dataset"] = None
+            st.rerun()
 
 filtered = points.loc[
     (points["Code"].isin(selected_codes) if selected_codes else points.index == points.index)
@@ -323,11 +377,14 @@ with diagnostic_col:
     bars.update_traces(textposition="outside", cliponaxis=False)
     st.plotly_chart(bars)
 
-    qa = profile.set_index("metric")["value"]
+    exact_duplicates = int(
+        points.duplicated(subset=["ID", "Northing", "Easting", "Elevation", "Code"]).sum()
+    )
+    repeated_coordinates = int(points.duplicated(subset=["Easting", "Northing"]).sum())
     st.caption(
-        f"Complete: {int(qa.get('complete coordinate/elevation rows', 0)):,} · "
-        f"Exact duplicates: {int(qa.get('exact duplicate rows', 0)):,} · "
-        f"Repeated coordinates: {int(qa.get('duplicate coordinate pairs', 0)):,}"
+        f"Complete: {len(points):,} · "
+        f"Exact duplicates: {exact_duplicates:,} · "
+        f"Repeated coordinates: {repeated_coordinates:,}"
     )
 
     detail_columns = ["ID", "Code", "Elevation", "Easting", "Northing", "latitude", "longitude"]

@@ -44,3 +44,7 @@ Open <http://localhost:8501>.
   available as a CSV download.
 - Professional civic-GIS visual system with a navy, teal, and gold palette,
   polished KPI cards, coordinated charts, and a high-contrast map tool dock.
+- In-app CSV updates without restarting the dashboard. Uploaded files require
+  `ID`, `Northing`, `Easting`, `Elevation`, and `Code`; coordinates are treated
+  as EPSG:32643 and transformed for web mapping in memory. The bundled survey
+  can be restored from the same tool.

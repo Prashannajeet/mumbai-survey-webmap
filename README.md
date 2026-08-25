@@ -1,0 +1,41 @@
+# Mumbai Survey Web Map
+
+Interactive Streamlit dashboard for the 23 August 2026 Mumbai/Kurla survey.
+The spatial analysis and GIS exports are generated in R; Streamlit reads the
+resulting GeoJSON for interactive exploration.
+
+## Coordinate system
+
+The confirmed source CRS is **WGS 84 / UTM Zone 43N (EPSG:32643)**. The R
+pipeline exports a WGS 84 GeoJSON for browser mapping.
+
+## Run locally
+
+```bash
+Rscript mumbai_survey_analysis.R
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+streamlit run app.py
+```
+
+Open <http://localhost:8501>.
+
+## Project files
+
+- `mumbai_survey_analysis.R`: data checks, static maps, CRS transformation,
+  GeoPackage and GeoJSON exports.
+- `app.py`: Streamlit dashboard.
+- `output/mumbai_survey_points.geojson`: dashboard-ready spatial dataset.
+- `output/mumbai_survey_points.gpkg`: GIS-ready point layer in EPSG:32643.
+
+## Dashboard capabilities
+
+- Full-area interactive web map with elevation or feature-code colouring.
+- Feature-code and elevation filters shared across the dashboard.
+- Exploratory smoothed elevation surface.
+- Elevation distribution and feature-code ranking.
+- Data-quality guardrails and downloadable filtered records.
+
+The elevation surface is exploratory and should not be interpreted as a
+hydraulic flood model or engineering contour product.

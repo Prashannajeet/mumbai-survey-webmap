@@ -26,6 +26,12 @@ CODE_COLOURS = {
     "Other / rare": "#A7AFB7",
 }
 
+ARCGIS_TILES = {
+    "ArcGIS Imagery": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    "ArcGIS Topographic": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    "ArcGIS Streets": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+}
+
 
 st.set_page_config(
     page_title="Mumbai Survey Web Map",
@@ -81,7 +87,7 @@ def load_profile(path: str) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def map_figure(data: pd.DataFrame, colour_by: str, map_style: str) -> go.Figure:
+def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
     hover = {
         "ID": True,
         "Code": True,
@@ -119,8 +125,20 @@ def map_figure(data: pd.DataFrame, colour_by: str, map_style: str) -> go.Figure:
         fig.update_layout(legend_title_text="Feature code")
 
     fig.update_traces(marker={"size": 9, "opacity": 0.88})
+    map_layout = {"style": "open-street-map" if basemap == "OpenStreetMap" else "carto-positron"}
+    if basemap in ARCGIS_TILES:
+        map_layout = {
+            "style": "white-bg",
+            "layers": [{
+                "below": "traces",
+                "sourcetype": "raster",
+                "source": [ARCGIS_TILES[basemap]],
+                "sourceattribution": "Tiles © Esri and contributors",
+            }],
+        }
+
     fig.update_layout(
-        map_style=map_style,
+        map=map_layout,
         map_bounds={"west": data.longitude.min(), "east": data.longitude.max(),
                     "south": data.latitude.min(), "north": data.latitude.max()},
         margin={"l": 0, "r": 0, "t": 0, "b": 0},
@@ -171,8 +189,10 @@ with filter_elevation:
 with filter_colour:
     colour_by = st.selectbox("Map colouring", ["Elevation", "Feature code"])
 with filter_basemap:
-    basemap_label = st.selectbox("Basemap", ["Street", "Light"])
-    map_style = "open-street-map" if basemap_label == "Street" else "carto-positron"
+    basemap_label = st.selectbox(
+        "Basemap",
+        ["OpenStreetMap", "Light", "ArcGIS Imagery", "ArcGIS Topographic", "ArcGIS Streets"],
+    )
 
 filtered = points.loc[
     (points["Code"].isin(selected_codes) if selected_codes else points.index == points.index)
@@ -191,7 +211,7 @@ metric_cols[3].metric("Median elevation", f"{filtered['Elevation'].median():.2f}
 metric_cols[4].metric("Max elevation", f"{filtered['Elevation'].max():.2f}")
 
 st.subheader("Full survey extent")
-st.plotly_chart(map_figure(filtered, colour_by, map_style))
+st.plotly_chart(map_figure(filtered, colour_by, basemap_label))
 st.caption("Coordinates transformed from confirmed EPSG:32643 to WGS 84 for web display.")
 
 st.subheader("Survey diagnostics")

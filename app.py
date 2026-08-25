@@ -43,13 +43,22 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .block-container {padding-top: 1.5rem; padding-bottom: 2rem; max-width: 1500px;}
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {height:100vh; overflow:hidden;}
+    .block-container {position:fixed; inset:0; width:100%; height:100vh; padding:0.7rem 1rem 0.5rem; max-width:1600px; overflow:hidden;}
     [data-testid="stSidebar"], [data-testid="collapsedControl"] {display:none;}
-    [data-testid="stMetric"] {background:#f7f9fb; border:1px solid #e4e9ee; padding:14px 16px; border-radius:12px;}
+    [data-testid="stHeader"] {height:0; min-height:0;}
+    [data-testid="stToolbar"] {top:0.2rem; right:0.4rem;}
+    [data-testid="stMetric"] {background:#f7f9fb; border:1px solid #e4e9ee; padding:8px 12px; border-radius:10px;}
     [data-testid="stMetricLabel"] {color:#52606d;}
     [data-testid="stPlotlyChart"] {border:0 !important; box-shadow:none !important;}
-    h1, h2, h3 {color:#17212b;}
-    .source-note {font-size:.86rem; color:#64717d;}
+    h1, h2, h3, h4 {color:#17212b; margin:0 !important;}
+    h1 {font-size:1.75rem !important; line-height:1.1 !important;}
+    h3 {font-size:1.05rem !important; line-height:1.35 !important; min-height:1.45rem; padding:0.1rem 0 0.25rem !important;}
+    h4 {font-size:0.95rem !important; padding:0 !important;}
+    .source-note {font-size:.76rem; color:#64717d; margin-bottom:0.15rem;}
+    [data-testid="stVerticalBlock"] {gap:0.35rem;}
+    [data-testid="stHorizontalBlock"] {gap:0.65rem;}
+    .stDownloadButton button {height:2.35rem; width:100%;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -107,7 +116,7 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
             hover_name="ID",
             hover_data=hover,
             zoom=15,
-            height=650,
+            height=585,
         )
         fig.update_coloraxes(colorbar_title="Elevation")
     else:
@@ -120,7 +129,7 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
             hover_name="ID",
             hover_data=hover,
             zoom=15,
-            height=650,
+            height=585,
         )
         fig.update_layout(legend_title_text="Feature code")
 
@@ -164,8 +173,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown("#### Filters")
-filter_code, filter_elevation, filter_colour, filter_basemap = st.columns([2.2, 2.2, 1.25, 1.15])
+filter_code, filter_elevation, filter_colour, filter_basemap = st.columns([2.1, 2.1, 1.2, 1.45])
 with filter_code:
     code_options = sorted(points["Code"].unique().tolist())
     selected_codes = st.multiselect(
@@ -210,28 +218,31 @@ metric_cols[2].metric("Min elevation", f"{filtered['Elevation'].min():.2f}")
 metric_cols[3].metric("Median elevation", f"{filtered['Elevation'].median():.2f}")
 metric_cols[4].metric("Max elevation", f"{filtered['Elevation'].max():.2f}")
 
-st.subheader("Full survey extent")
-st.plotly_chart(map_figure(filtered, colour_by, basemap_label))
-st.caption("Coordinates transformed from confirmed EPSG:32643 to WGS 84 for web display.")
+map_col, diagnostic_col = st.columns([2.3, 1], vertical_alignment="top")
+with map_col:
+    st.subheader("Full survey extent")
+    st.plotly_chart(map_figure(filtered, colour_by, basemap_label))
+    st.caption("Confirmed EPSG:32643; transformed to WGS 84 for web display.")
 
-st.subheader("Survey diagnostics")
-left, right = st.columns([1.25, 1])
-with left:
+with diagnostic_col:
+    st.subheader("Diagnostics")
     histogram = px.histogram(
         filtered,
         x="Elevation",
-        nbins=30,
+        nbins=24,
         color_discrete_sequence=[BLUE],
         labels={"Elevation": "Elevation (source units)", "count": "Survey points"},
     )
     histogram.update_layout(
         title="Elevation distribution",
         showlegend=False,
-        margin={"l": 0, "r": 10, "t": 55, "b": 0},
+        height=245,
+        margin={"l": 5, "r": 5, "t": 38, "b": 5},
         yaxis_title="Survey points",
+        font={"size": 10},
     )
     st.plotly_chart(histogram)
-with right:
+
     counts = filtered["Code"].value_counts().head(12).sort_values().rename_axis("Code").reset_index(name="Records")
     bars = px.bar(
         counts,
@@ -241,38 +252,27 @@ with right:
         color_discrete_sequence=[ORANGE],
         text="Records",
     )
-    bars.update_layout(title="Most frequent feature codes", margin={"l": 0, "r": 10, "t": 55, "b": 0})
+    bars.update_layout(
+        title="Most frequent feature codes",
+        height=245,
+        margin={"l": 5, "r": 15, "t": 38, "b": 5},
+        font={"size": 10},
+    )
     bars.update_traces(textposition="outside", cliponaxis=False)
     st.plotly_chart(bars)
 
-qa = profile.set_index("metric")["value"]
-st.caption(
-    f"Complete coordinate/elevation rows: {int(qa.get('complete coordinate/elevation rows', 0)):,} · "
-    f"Exact duplicate rows: {int(qa.get('exact duplicate rows', 0)):,} · "
-    f"Repeated coordinate pairs after the first: {int(qa.get('duplicate coordinate pairs', 0)):,}"
-)
+    qa = profile.set_index("metric")["value"]
+    st.caption(
+        f"Complete: {int(qa.get('complete coordinate/elevation rows', 0)):,} · "
+        f"Exact duplicates: {int(qa.get('exact duplicate rows', 0)):,} · "
+        f"Repeated coordinates: {int(qa.get('duplicate coordinate pairs', 0)):,}"
+    )
 
-st.subheader("Survey records")
-detail_columns = ["ID", "Code", "Elevation", "Easting", "Northing", "latitude", "longitude"]
-detail = filtered[detail_columns].sort_values(["Code", "ID"], na_position="last")
-st.dataframe(
-    detail,
-    width="stretch",
-    hide_index=True,
-    column_config={
-        "Elevation": st.column_config.NumberColumn(format="%.3f"),
-        "Easting": st.column_config.NumberColumn(format="%.3f"),
-        "Northing": st.column_config.NumberColumn(format="%.3f"),
-        "latitude": st.column_config.NumberColumn(format="%.6f"),
-        "longitude": st.column_config.NumberColumn(format="%.6f"),
-    },
-)
-st.download_button(
-    "Download filtered records",
-    data=detail.to_csv(index=False).encode("utf-8"),
-    file_name="mumbai_survey_filtered.csv",
-    mime="text/csv",
-)
-
-st.divider()
-st.caption("Source: 23-08-2026 TOTAL.csv · Analysis and GIS preparation: R · Dashboard: Streamlit")
+    detail_columns = ["ID", "Code", "Elevation", "Easting", "Northing", "latitude", "longitude"]
+    detail = filtered[detail_columns].sort_values(["Code", "ID"], na_position="last")
+    st.download_button(
+        "Download filtered records",
+        data=detail.to_csv(index=False).encode("utf-8"),
+        file_name="mumbai_survey_filtered.csv",
+        mime="text/csv",
+    )

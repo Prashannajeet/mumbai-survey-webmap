@@ -37,4 +37,6 @@ Open <http://localhost:8501>.
 - Feature-code and elevation filters shared across the dashboard.
 - Elevation distribution and feature-code ranking.
 - Data-quality guardrails and downloadable filtered records.
-- Single-canvas layout with top controls and no sidebar or tab frames.
+- Fixed single-screen canvas with no page scrolling, sidebar, or tab frames.
+- Map and diagnostic charts remain visible together; filtered records are
+  available as a CSV download.

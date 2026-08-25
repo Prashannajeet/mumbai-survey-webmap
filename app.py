@@ -17,6 +17,9 @@ SOURCE_CRS = "WGS 84 / UTM Zone 43N (EPSG:32643)"
 BLUE = "#176B87"
 ORANGE = "#D98E04"
 INK = "#17212B"
+NAVY = "#0B2239"
+TEAL = "#1F7A8C"
+CANVAS = "#EEF3F7"
 CODE_COLOURS = {
     "FT": BLUE,
     "LV": ORANGE,
@@ -57,26 +60,33 @@ st.markdown(
     """
     <style>
     html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {height:100vh; overflow:hidden;}
-    .block-container {position:fixed; inset:0; width:100%; height:100vh; padding:0.7rem 1rem 0.5rem; max-width:1600px; overflow:hidden;}
+    [data-testid="stAppViewContainer"] {background:#eef3f7;}
+    .block-container {position:fixed; inset:0; width:100%; height:100vh; padding:0.65rem 0.85rem 0.45rem; max-width:1600px; overflow:hidden;}
     [data-testid="stSidebar"], [data-testid="collapsedControl"] {display:none;}
     [data-testid="stHeader"] {height:0; min-height:0;}
     [data-testid="stToolbar"] {top:0.2rem; right:0.4rem;}
-    [data-testid="stMetric"] {background:#f7f9fb; border:1px solid #e4e9ee; padding:8px 12px; border-radius:10px;}
-    [data-testid="stMetricLabel"] {color:#52606d;}
+    [data-testid="stMetric"] {background:#fff; border:1px solid #dce5eb; border-left:3px solid #1f7a8c; padding:8px 12px; border-radius:10px; box-shadow:0 2px 8px rgba(11,34,57,.06);}
+    [data-testid="stMetricLabel"] {color:#526b7a; font-size:.76rem; font-weight:600; letter-spacing:.02em;}
+    [data-testid="stMetricValue"] {color:#0b2239; font-weight:650;}
     [data-testid="stPlotlyChart"] {border:0 !important; box-shadow:none !important;}
     h1, h2, h3, h4 {color:#17212b; margin:0 !important;}
     h1 {font-size:1.75rem !important; line-height:1.1 !important;}
     h3 {font-size:1.05rem !important; line-height:1.35 !important; min-height:1.45rem; padding:0.1rem 0 0.25rem !important;}
     h4 {font-size:0.95rem !important; padding:0 !important;}
     .source-note {font-size:.76rem; color:#64717d; margin-bottom:0.15rem;}
+    .dashboard-hero {display:flex; align-items:center; justify-content:space-between; gap:1rem; background:#0b2239; color:#fff; padding:.65rem .85rem; border-radius:12px; box-shadow:0 5px 16px rgba(11,34,57,.16);}
+    .hero-spacer {height:.55rem;}
+    .dashboard-title {font-size:1.35rem; line-height:1.1; font-weight:700; letter-spacing:-.02em;}
+    .dashboard-meta {font-size:.73rem; color:#b9c8d3; margin-top:.18rem;}
+    .status-pill {white-space:nowrap; color:#d9f1f0; background:#164b5a; border:1px solid #2b7e88; border-radius:999px; padding:.28rem .62rem; font-size:.7rem; font-weight:650;}
     [data-testid="stVerticalBlock"] {gap:0.35rem;}
     [data-testid="stHorizontalBlock"] {gap:0.65rem;}
     .stDownloadButton button {height:2.35rem; width:100%;}
     .st-key-survey_navigation_map .modebar {
         top:8px !important; right:8px !important; left:auto !important;
         display:flex !important; flex-direction:column !important;
-        background:rgba(255,255,255,.92) !important;
-        border:1px solid #dfe5ea; border-radius:8px; padding:3px !important;
+        background:rgba(255,255,255,.96) !important;
+        border:1px solid #cbd9e1; border-radius:9px; padding:3px !important;
         box-shadow:0 1px 4px rgba(23,33,43,.12);
     }
     .st-key-survey_navigation_map .modebar-group {
@@ -84,8 +94,15 @@ st.markdown(
         padding:0 !important;
     }
     .st-key-survey_navigation_map .modebar-btn {padding:4px !important;}
-    .st-key-survey_navigation_map .modebar-btn path {fill:#34495e !important;}
-    .st-key-survey_navigation_map .modebar-btn:hover {background:#edf3f6 !important; border-radius:5px;}
+    .st-key-survey_navigation_map .modebar-btn path {fill:#164b5a !important;}
+    .st-key-survey_navigation_map .modebar-btn:hover {background:#dff0f2 !important; border-radius:5px;}
+    div[data-baseweb="select"] > div, [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+        background:#fff; border-color:#d8e3e9; border-radius:9px;
+    }
+    [data-testid="stSlider"] [role="slider"] {background:#1f7a8c !important; border-color:#fff !important;}
+    [data-testid="stSlider"] div[data-testid="stTickBarMin"], [data-testid="stSlider"] div[data-testid="stTickBarMax"] {color:#526b7a;}
+    .stDownloadButton button {background:#0b2239; color:#fff; border:1px solid #0b2239; border-radius:9px; font-weight:650;}
+    .stDownloadButton button:hover {background:#164b5a; color:#fff; border-color:#164b5a;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -139,7 +156,10 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
             lat="latitude",
             lon="longitude",
             color="Elevation",
-            color_continuous_scale="Plasma",
+            color_continuous_scale=[
+                [0.0, "#153D57"], [0.35, "#1F7A8C"],
+                [0.7, "#74A98D"], [1.0, "#F0B44D"],
+            ],
             hover_name="ID",
             hover_data=hover,
             zoom=15,
@@ -180,8 +200,8 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
         dragmode="pan",
         uirevision="preserve-map-view",
         margin={"l": 0, "r": 0, "t": 0, "b": 0},
-        paper_bgcolor="white",
-        font={"color": INK},
+        paper_bgcolor=CANVAS,
+        font={"color": NAVY},
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.01, "x": 0},
     )
     return fig
@@ -195,10 +215,10 @@ except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
     st.info("Run `Rscript mumbai_survey_analysis.R` to regenerate the GIS outputs.")
     st.stop()
 
-st.title("Mumbai Survey Web Map")
 st.markdown(
-    f'<div class="source-note">Survey dated 23 Aug 2026 · {SOURCE_CRS} · '
-    f'{len(points):,} mapped records</div>',
+    f'<div class="dashboard-hero"><div><div class="dashboard-title">Mumbai Survey Web Map</div>'
+    f'<div class="dashboard-meta">Survey dated 23 Aug 2026 · {SOURCE_CRS} · {len(points):,} mapped records</div>'
+    f'</div><div class="status-pill">● GIS READY</div></div><div class="hero-spacer"></div>',
     unsafe_allow_html=True,
 )
 
@@ -264,7 +284,7 @@ with diagnostic_col:
         filtered,
         x="Elevation",
         nbins=24,
-        color_discrete_sequence=[BLUE],
+        color_discrete_sequence=[TEAL],
         labels={"Elevation": "Elevation (source units)", "count": "Survey points"},
     )
     histogram.update_layout(
@@ -274,7 +294,11 @@ with diagnostic_col:
         margin={"l": 5, "r": 5, "t": 38, "b": 5},
         yaxis_title="Survey points",
         font={"size": 10},
+        paper_bgcolor=CANVAS,
+        plot_bgcolor=CANVAS,
     )
+    histogram.update_xaxes(showgrid=False, linecolor="#CBD7DE", tickcolor="#CBD7DE")
+    histogram.update_yaxes(gridcolor="#DCE5EA", zeroline=False, linecolor="#CBD7DE")
     st.plotly_chart(histogram)
 
     counts = filtered["Code"].value_counts().head(12).sort_values().rename_axis("Code").reset_index(name="Records")
@@ -291,7 +315,11 @@ with diagnostic_col:
         height=245,
         margin={"l": 5, "r": 15, "t": 38, "b": 5},
         font={"size": 10},
+        paper_bgcolor=CANVAS,
+        plot_bgcolor=CANVAS,
     )
+    bars.update_xaxes(gridcolor="#DCE5EA", zeroline=False, linecolor="#CBD7DE")
+    bars.update_yaxes(showgrid=False, linecolor="#CBD7DE")
     bars.update_traces(textposition="outside", cliponaxis=False)
     st.plotly_chart(bars)
 

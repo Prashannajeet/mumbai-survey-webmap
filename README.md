@@ -42,3 +42,5 @@ Open <http://localhost:8501>.
 - Fixed single-screen canvas with no page scrolling, sidebar, or tab frames.
 - Map and diagnostic charts remain visible together; filtered records are
   available as a CSV download.
+- Professional civic-GIS visual system with a navy, teal, and gold palette,
+  polished KPI cards, coordinated charts, and a high-contrast map tool dock.

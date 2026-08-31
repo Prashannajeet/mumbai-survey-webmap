@@ -13,6 +13,7 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Confirmed source CRS: WGS 84 / UTM zone 43N (EPSG:32643).
 source_epsg <- 32643
+dem_resolution_m <- 20
 
 survey <- read_csv(
   input_file,
@@ -144,6 +145,87 @@ if (requireNamespace("sf", quietly = TRUE)) {
   xy <- sf::st_coordinates(survey_wgs84)
   write_csv(bind_cols(sf::st_drop_geometry(survey_wgs84), tibble(longitude = xy[, 1], latitude = xy[, 2])),
             file.path(output_dir, "survey_points_wgs84.csv"))
+
+  if (requireNamespace("mgcv", quietly = TRUE) && requireNamespace("terra", quietly = TRUE)) {
+    dem_model <- mgcv::gam(
+      Elevation ~ s(Easting, Northing, bs = "tp", k = min(200, nrow(valid_points) - 1)),
+      data = valid_points,
+      method = "REML"
+    )
+
+    x_sequence <- seq(
+      floor(min(valid_points$Easting) / dem_resolution_m) * dem_resolution_m,
+      ceiling(max(valid_points$Easting) / dem_resolution_m) * dem_resolution_m,
+      by = dem_resolution_m
+    )
+    y_sequence <- seq(
+      floor(min(valid_points$Northing) / dem_resolution_m) * dem_resolution_m,
+      ceiling(max(valid_points$Northing) / dem_resolution_m) * dem_resolution_m,
+      by = dem_resolution_m
+    )
+    dem_grid <- expand.grid(Easting = x_sequence, Northing = y_sequence)
+
+    survey_hull <- sf::st_convex_hull(sf::st_union(sf::st_geometry(survey_sf)))
+    survey_footprint <- sf::st_buffer(survey_hull, dist = 40)
+    grid_sf <- sf::st_as_sf(dem_grid, coords = c("Easting", "Northing"), crs = source_epsg, remove = FALSE)
+    inside_footprint <- lengths(sf::st_within(grid_sf, survey_footprint)) > 0
+    dem_grid <- dem_grid[inside_footprint, , drop = FALSE]
+
+    predictions <- predict(dem_model, newdata = dem_grid, se.fit = TRUE)
+    dem_grid$Elevation_DEM <- as.numeric(predictions$fit)
+    dem_grid$Prediction_SE <- as.numeric(predictions$se.fit)
+
+    dem_grid_sf <- sf::st_as_sf(
+      dem_grid,
+      coords = c("Easting", "Northing"),
+      crs = source_epsg,
+      remove = FALSE
+    )
+    dem_grid_wgs84 <- sf::st_transform(dem_grid_sf, 4326)
+    dem_xy <- sf::st_coordinates(dem_grid_wgs84)
+    dem_web <- bind_cols(
+      sf::st_drop_geometry(dem_grid_wgs84),
+      tibble(longitude = dem_xy[, 1], latitude = dem_xy[, 2])
+    )
+    write_csv(dem_web, file.path(output_dir, "mumbai_survey_dem_web.csv"))
+
+    dem_raster <- terra::rast(
+      ncols = length(x_sequence), nrows = length(y_sequence),
+      xmin = min(x_sequence) - dem_resolution_m / 2,
+      xmax = max(x_sequence) + dem_resolution_m / 2,
+      ymin = min(y_sequence) - dem_resolution_m / 2,
+      ymax = max(y_sequence) + dem_resolution_m / 2,
+      crs = paste0("EPSG:", source_epsg)
+    )
+    terra::values(dem_raster) <- NA_real_
+    dem_cells <- terra::cellFromXY(dem_raster, dem_grid[, c("Easting", "Northing")])
+    dem_raster[dem_cells] <- dem_grid$Elevation_DEM
+    names(dem_raster) <- "Elevation_DEM"
+    terra::writeRaster(
+      dem_raster,
+      file.path(output_dir, "mumbai_survey_dem_utm43n.tif"),
+      overwrite = TRUE,
+      gdal = c("COMPRESS=DEFLATE", "PREDICTOR=3")
+    )
+
+    dem_profile <- tibble(
+      metric = c(
+        "method", "source_crs", "resolution_m", "grid_cells",
+        "minimum_dem_elevation", "mean_dem_elevation", "maximum_dem_elevation",
+        "median_prediction_se"
+      ),
+      value = as.character(c(
+        "Thin-plate regression spline (GAM REML)",
+        "WGS 84 / UTM zone 43N (EPSG:32643)",
+        dem_resolution_m, nrow(dem_grid), min(dem_grid$Elevation_DEM),
+        mean(dem_grid$Elevation_DEM), max(dem_grid$Elevation_DEM),
+        median(dem_grid$Prediction_SE)
+      ))
+    )
+    write_csv(dem_profile, file.path(output_dir, "dem_profile.csv"))
+  } else {
+    warning("Packages 'mgcv' and 'terra' are required to generate DEM outputs.")
+  }
 } else {
   warning("Package 'sf' is unavailable: GeoPackage, GeoJSON, and WGS84 CSV were not created.")
 }
@@ -156,6 +238,7 @@ capture.output(
     missingness = missingness,
     codes = code_summary,
     elevation = elevation_summary,
+    dem = if (exists("dem_profile")) dem_profile else "DEM was not generated",
     session = sessionInfo()
   ),
   file = file.path(output_dir, "analysis_report.txt")

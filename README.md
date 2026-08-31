@@ -34,6 +34,10 @@ streamlit run app.py
 
 Open <http://localhost:8501>.
 
+The R analysis requires `readr`, `dplyr`, `ggplot2`, `viridis`, `sf`, `mgcv`,
+and `terra`. The Streamlit deployment uses the committed web DEM and does not
+need R at runtime.
+
 ## Project files
 
 - `mumbai_survey_analysis.R`: data checks, static maps, CRS transformation,
@@ -43,10 +47,15 @@ Open <http://localhost:8501>.
   validated bundled source containing 2,611 unique survey records.
 - `output/mumbai_survey_points.geojson`: dashboard-ready spatial dataset.
 - `output/mumbai_survey_points.gpkg`: GIS-ready point layer in EPSG:32643.
+- `output/mumbai_survey_dem_utm43n.tif`: interpolated GeoTIFF DEM in EPSG:32643.
+- `output/mumbai_survey_dem_web.csv`: web-map grid with WGS 84 coordinates.
 
 ## Dashboard capabilities
 
 - Full-area interactive web map with elevation or feature-code colouring.
+- Smooth 20 m DEM generated in R with a thin-plate regression spline, available
+  as points-only, DEM-plus-points, and DEM-only map views. The interpolation is
+  clipped to a buffered survey footprint to limit unsupported extrapolation.
 - OpenStreetMap, light, ArcGIS World Imagery, ArcGIS Topographic, and ArcGIS
   Streets basemaps.
 - Mouse-wheel zoom, drag-to-pan, zoom in/out, reset, fullscreen, and PNG export

@@ -13,6 +13,7 @@ from pyproj import Transformer
 
 ROOT = Path(__file__).resolve().parent
 GEOJSON_PATH = ROOT / "output" / "mumbai_survey_points.geojson"
+DEM_WEB_PATH = ROOT / "output" / "mumbai_survey_dem_web.csv"
 SOURCE_CRS = "WGS 84 / UTM Zone 43N (EPSG:32643)"
 WEB_CRS = "WGS 84 (EPSG:4326)"
 UTM_TO_WGS84 = Transformer.from_crs(32643, 4326, always_xy=True)
@@ -144,6 +145,19 @@ def load_points(path: str, file_revision: int) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
+def load_dem(path: str, file_revision: int) -> pd.DataFrame:
+    del file_revision
+    frame = pd.read_csv(path)
+    required = {"Easting", "Northing", "Elevation_DEM", "Prediction_SE", "longitude", "latitude"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"DEM is missing required fields: {', '.join(sorted(missing))}")
+    for column in required:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    return frame.dropna(subset=list(required))
+
+
+@st.cache_data(show_spinner=False)
 def load_uploaded_csv(raw: bytes) -> pd.DataFrame:
     frame = pd.read_csv(BytesIO(raw))
     normalized = {str(column).strip().lower(): column for column in frame.columns}
@@ -202,7 +216,13 @@ def duplicate_audit(frame: pd.DataFrame) -> tuple[dict[str, int], pd.DataFrame]:
     return counts, report
 
 
-def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
+def map_figure(
+    data: pd.DataFrame,
+    colour_by: str,
+    basemap: str,
+    dem: pd.DataFrame | None = None,
+    map_layer: str = "Points",
+) -> go.Figure:
     hover = {
         "ID": True,
         "Code": True,
@@ -241,6 +261,38 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
             height=525,
         )
         fig.update_layout(legend_title_text="Feature code")
+
+    if map_layer == "DEM only":
+        for trace in fig.data:
+            trace.visible = False
+
+    if dem is not None and map_layer in {"DEM + points", "DEM only"}:
+        dem_trace = go.Scattermap(
+            lat=dem["latitude"],
+            lon=dem["longitude"],
+            mode="markers",
+            name="Interpolated DEM",
+            marker={
+                "size": 7,
+                "color": dem["Elevation_DEM"],
+                "colorscale": [
+                    [0.0, "#153D57"], [0.35, "#1F7A8C"],
+                    [0.7, "#74A98D"], [1.0, "#F0B44D"],
+                ],
+                "opacity": 0.72,
+                "showscale": map_layer == "DEM only" or colour_by == "Feature code",
+                "colorbar": {"title": "DEM elevation"},
+            },
+            customdata=dem[["Easting", "Northing", "Elevation_DEM", "Prediction_SE"]],
+            hovertemplate=(
+                "DEM elevation: %{customdata[2]:.2f}<br>"
+                "Prediction SE: %{customdata[3]:.2f}<br>"
+                "Easting: %{customdata[0]:.1f}<br>"
+                "Northing: %{customdata[1]:.1f}<extra></extra>"
+            ),
+        )
+        fig.add_trace(dem_trace)
+        fig.data = (fig.data[-1],) + fig.data[:-1]
 
     fig.update_traces(marker={"size": 9, "opacity": 0.88})
     map_layout = {
@@ -281,6 +333,7 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
 
 try:
     points = load_points(str(GEOJSON_PATH), GEOJSON_PATH.stat().st_mtime_ns)
+    dem_surface = load_dem(str(DEM_WEB_PATH), DEM_WEB_PATH.stat().st_mtime_ns)
 except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
     st.error(f"Dashboard data could not be loaded: {exc}")
     st.info("Run `Rscript mumbai_survey_analysis.R` to regenerate the GIS outputs.")
@@ -327,13 +380,20 @@ with filter_elevation:
         step=0.1,
         format="%.1f",
     )
-filter_colour, filter_basemap, filter_upload = st.columns([1, 1, 0.58])
+filter_colour, filter_basemap, filter_layer, filter_upload = st.columns([1, 1, 0.9, 0.58])
 with filter_colour:
     colour_by = st.selectbox("Map colouring", ["Elevation", "Feature code"])
 with filter_basemap:
     basemap_label = st.selectbox(
         "Basemap",
         ["OpenStreetMap", "Light", "ArcGIS Imagery", "ArcGIS Topographic", "ArcGIS Streets"],
+    )
+with filter_layer:
+    layer_options = ["Points"] if pending_upload is not None else ["Points", "DEM + points", "DEM only"]
+    map_layer = st.selectbox(
+        "Map layer",
+        layer_options,
+        help="The bundled DEM is a 20 m thin-plate spline surface in UTM Zone 43N.",
     )
 with filter_upload:
     st.markdown("<div style='height:1.52rem'></div>", unsafe_allow_html=True)
@@ -388,9 +448,12 @@ metric_cols[4].metric("Max elevation", f"{filtered['Elevation'].max():.2f}")
 map_col, diagnostic_col = st.columns([2.3, 1], vertical_alignment="top")
 with map_col:
     st.subheader("Full survey extent")
-    st.caption("Wheel zoom · Drag pan · Toolbar: zoom, reset, fullscreen, export")
+    if map_layer == "Points":
+        st.caption("Wheel zoom · Drag pan · Toolbar: zoom, reset, fullscreen, export")
+    else:
+        st.caption("20 m smooth DEM · Thin-plate spline · Hover for prediction uncertainty")
     st.plotly_chart(
-        map_figure(filtered, colour_by, basemap_label),
+        map_figure(filtered, colour_by, basemap_label, dem_surface, map_layer),
         config=MAP_CONFIG,
         key="survey_navigation_map",
     )

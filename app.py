@@ -115,7 +115,10 @@ st.markdown(
 
 
 @st.cache_data(show_spinner=False)
-def load_points(path: str) -> pd.DataFrame:
+def load_points(path: str, file_revision: int) -> pd.DataFrame:
+    # file_revision participates in Streamlit's cache key so regenerated GIS
+    # outputs are loaded immediately even though their path stays unchanged.
+    del file_revision
     with open(path, "r", encoding="utf-8") as handle:
         geojson = json.load(handle)
 
@@ -277,7 +280,7 @@ def map_figure(data: pd.DataFrame, colour_by: str, basemap: str) -> go.Figure:
 
 
 try:
-    points = load_points(str(GEOJSON_PATH))
+    points = load_points(str(GEOJSON_PATH), GEOJSON_PATH.stat().st_mtime_ns)
 except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
     st.error(f"Dashboard data could not be loaded: {exc}")
     st.info("Run `Rscript mumbai_survey_analysis.R` to regenerate the GIS outputs.")

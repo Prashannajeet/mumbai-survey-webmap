@@ -1,5 +1,6 @@
 source_dir <- "/Users/prashannajeet/Documents/Projects/Amit-Kurla/RTK KURLA TILL DATE  31-08-2026/KURLA DGPS DATA 27826sta Files/27826sta Files"
-output_dir <- file.path(getwd(), "data", "rtk_31-08-2026")
+project_dir <- "/Users/prashannajeet/Documents/Projects/Amit-Kurla"
+output_dir <- file.path(project_dir, "data", "rtk_31-08-2026")
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 csv_files <- list.files(source_dir, pattern = "\\.csv$", full.names = TRUE, ignore.case = TRUE)

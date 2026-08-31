@@ -7,8 +7,9 @@ suppressPackageStartupMessages({
   library(viridis)
 })
 
-input_file <- "/Users/prashannajeet/Documents/Flood/data/rtk_31-08-2026/RTK_KURLA_MERGED_DEDUPLICATED_31-08-2026.csv"
-output_dir <- "/Users/prashannajeet/Documents/Flood/output"
+project_dir <- "/Users/prashannajeet/Documents/Projects/Amit-Kurla"
+input_file <- file.path(project_dir, "data", "rtk_31-08-2026", "RTK_KURLA_MERGED_DEDUPLICATED_31-08-2026.csv")
+output_dir <- file.path(project_dir, "output")
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Confirmed source CRS: WGS 84 / UTM zone 43N (EPSG:32643).

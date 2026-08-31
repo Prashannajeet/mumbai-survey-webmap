@@ -283,7 +283,7 @@ except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
     st.info("Run `Rscript mumbai_survey_analysis.R` to regenerate the GIS outputs.")
     st.stop()
 
-active_source = "Bundled survey"
+active_source = "Bundled survey · 31 Aug 2026"
 upload_error = None
 upload_duplicate_counts = None
 upload_duplicate_report = None

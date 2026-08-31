@@ -1,0 +1,11 @@
+"Metric","Value"
+"Compatible CSV files",21
+"Excluded non-5-column CSV files",1
+"Raw rows",2636
+"Valid rows",2634
+"Invalid rows",2
+"Exact duplicate rows involved",33
+"Additional exact duplicates",23
+"Deduplicated valid rows",2611
+"Repeated-coordinate rows involved",45
+"Unique coordinate pairs",2601

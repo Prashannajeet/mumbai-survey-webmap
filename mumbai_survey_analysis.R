@@ -7,7 +7,7 @@ suppressPackageStartupMessages({
   library(viridis)
 })
 
-input_file <- "/Users/prashannajeet/Documents/Projects/Amit-Kurla/23-08-2026 TOTAL.csv"
+input_file <- "/Users/prashannajeet/Documents/Flood/data/rtk_31-08-2026/RTK_KURLA_MERGED_DEDUPLICATED_31-08-2026.csv"
 output_dir <- "/Users/prashannajeet/Documents/Flood/output"
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -34,6 +34,7 @@ survey <- read_csv(
 
 required <- c("ID", "Northing", "Easting", "Elevation", "Code")
 stopifnot(all(required %in% names(survey)))
+source_label <- basename(input_file)
 
 valid_points <- survey %>%
   filter(is.finite(Easting), is.finite(Northing), is.finite(Elevation))
@@ -104,7 +105,7 @@ p_elevation <- ggplot(valid_points, aes(Easting, Northing, colour = Elevation)) 
     title = "Mumbai survey points by elevation",
     subtitle = sprintf("%s valid points; projected coordinates shown in metres", nrow(valid_points)),
     x = "Easting (m)", y = "Northing (m)",
-    caption = "Source: 23-08-2026 TOTAL.csv | CRS: WGS 84 / UTM zone 43N (EPSG:32643)"
+    caption = paste("Source:", source_label, "| CRS: WGS 84 / UTM zone 43N (EPSG:32643)")
   ) + theme_map
 
 p_code <- ggplot(valid_points, aes(Easting, Northing, colour = Code_group)) +
@@ -119,7 +120,7 @@ p_code <- ggplot(valid_points, aes(Easting, Northing, colour = Code_group)) +
     title = "Mumbai survey points by feature code",
     subtitle = "Five most frequent codes shown separately; remaining codes grouped",
     x = "Easting (m)", y = "Northing (m)",
-    caption = "Source: 23-08-2026 TOTAL.csv | CRS: WGS 84 / UTM zone 43N (EPSG:32643)"
+    caption = paste("Source:", source_label, "| CRS: WGS 84 / UTM zone 43N (EPSG:32643)")
   ) + theme_map
 
 p_hist <- ggplot(valid_points, aes(Elevation)) +
@@ -128,7 +129,7 @@ p_hist <- ggplot(valid_points, aes(Elevation)) +
     title = "Distribution of surveyed elevations",
     subtitle = sprintf("n = %s complete records", nrow(valid_points)),
     x = "Elevation (source units)", y = "Survey points",
-    caption = "Source: 23-08-2026 TOTAL.csv"
+    caption = paste("Source:", source_label)
   ) + theme_map
 
 ggsave(file.path(output_dir, "survey_elevation_map.png"), p_elevation, width = 10, height = 8, dpi = 220, bg = "white")

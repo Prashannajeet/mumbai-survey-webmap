@@ -1,6 +1,7 @@
 # Mumbai Survey Web Map
 
-Interactive Streamlit dashboard for the 23 August 2026 Mumbai/Kurla survey.
+Interactive Streamlit dashboard for the Mumbai/Kurla survey updated through
+31 August 2026.
 The spatial analysis and GIS exports are generated in R; Streamlit reads the
 resulting GeoJSON for interactive exploration.
 
@@ -38,6 +39,8 @@ Open <http://localhost:8501>.
 - `mumbai_survey_analysis.R`: data checks, static maps, CRS transformation,
   GeoPackage and GeoJSON exports.
 - `app.py`: Streamlit dashboard.
+- `data/rtk_31-08-2026/RTK_KURLA_MERGED_DEDUPLICATED_31-08-2026.csv`:
+  validated bundled source containing 2,611 unique survey records.
 - `output/mumbai_survey_points.geojson`: dashboard-ready spatial dataset.
 - `output/mumbai_survey_points.gpkg`: GIS-ready point layer in EPSG:32643.
 

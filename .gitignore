@@ -3,3 +3,10 @@
 __pycache__/
 *.py[cod]
 .streamlit/secrets.toml
+
+# Local raw survey and CAD source archives kept beside the application.
+/23-08-2026 TOTAL.csv
+/KURLA PG/
+/KURLA PG.zip
+/RTK KURLA TILL DATE  31-08-2026/
+/RTK KURLA TILL DATE  31-08-2026.zip

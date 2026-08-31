@@ -53,9 +53,11 @@ need R at runtime.
 ## Dashboard capabilities
 
 - Full-area interactive web map with elevation or feature-code colouring.
-- Smooth 20 m DEM generated in R with a thin-plate regression spline, available
-  as points-only, DEM-plus-points, and DEM-only map views. The interpolation is
-  clipped to a buffered survey footprint to limit unsupported extrapolation.
+- Smooth 2 m DEM generated in R with a thin-plate regression spline, available
+  as points-only, DEM-plus-points, and DEM-only map views. The browser uses a
+  20 m display sample for responsive interaction while the downloadable
+  GeoTIFF retains the full 2 m resolution. The interpolation is clipped to a
+  buffered survey footprint to limit unsupported extrapolation.
 - OpenStreetMap, light, ArcGIS World Imagery, ArcGIS Topographic, and ArcGIS
   Streets basemaps.
 - Mouse-wheel zoom, drag-to-pan, zoom in/out, reset, fullscreen, and PNG export

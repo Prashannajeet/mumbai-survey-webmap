@@ -13,7 +13,8 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Confirmed source CRS: WGS 84 / UTM zone 43N (EPSG:32643).
 source_epsg <- 32643
-dem_resolution_m <- 20
+dem_resolution_m <- 2
+dem_web_resolution_m <- 20
 
 survey <- read_csv(
   input_file,
@@ -154,14 +155,14 @@ if (requireNamespace("sf", quietly = TRUE)) {
     )
 
     x_sequence <- seq(
-      floor(min(valid_points$Easting) / dem_resolution_m) * dem_resolution_m,
-      ceiling(max(valid_points$Easting) / dem_resolution_m) * dem_resolution_m,
-      by = dem_resolution_m
+      floor(min(valid_points$Easting) / dem_web_resolution_m) * dem_web_resolution_m,
+      ceiling(max(valid_points$Easting) / dem_web_resolution_m) * dem_web_resolution_m,
+      by = dem_web_resolution_m
     )
     y_sequence <- seq(
-      floor(min(valid_points$Northing) / dem_resolution_m) * dem_resolution_m,
-      ceiling(max(valid_points$Northing) / dem_resolution_m) * dem_resolution_m,
-      by = dem_resolution_m
+      floor(min(valid_points$Northing) / dem_web_resolution_m) * dem_web_resolution_m,
+      ceiling(max(valid_points$Northing) / dem_web_resolution_m) * dem_web_resolution_m,
+      by = dem_web_resolution_m
     )
     dem_grid <- expand.grid(Easting = x_sequence, Northing = y_sequence)
 
@@ -190,16 +191,30 @@ if (requireNamespace("sf", quietly = TRUE)) {
     write_csv(dem_web, file.path(output_dir, "mumbai_survey_dem_web.csv"))
 
     dem_raster <- terra::rast(
-      ncols = length(x_sequence), nrows = length(y_sequence),
-      xmin = min(x_sequence) - dem_resolution_m / 2,
-      xmax = max(x_sequence) + dem_resolution_m / 2,
-      ymin = min(y_sequence) - dem_resolution_m / 2,
-      ymax = max(y_sequence) + dem_resolution_m / 2,
+      xmin = floor(min(valid_points$Easting) / dem_resolution_m) * dem_resolution_m,
+      xmax = ceiling(max(valid_points$Easting) / dem_resolution_m) * dem_resolution_m,
+      ymin = floor(min(valid_points$Northing) / dem_resolution_m) * dem_resolution_m,
+      ymax = ceiling(max(valid_points$Northing) / dem_resolution_m) * dem_resolution_m,
+      resolution = dem_resolution_m,
       crs = paste0("EPSG:", source_epsg)
     )
-    terra::values(dem_raster) <- NA_real_
-    dem_cells <- terra::cellFromXY(dem_raster, dem_grid[, c("Easting", "Northing")])
-    dem_raster[dem_cells] <- dem_grid$Elevation_DEM
+    raster_xy <- terra::xyFromCell(dem_raster, seq_len(terra::ncell(dem_raster)))
+    raster_predictions <- numeric(terra::ncell(dem_raster))
+    prediction_chunks <- split(
+      seq_len(terra::ncell(dem_raster)),
+      ceiling(seq_len(terra::ncell(dem_raster)) / 50000)
+    )
+    for (cell_index in prediction_chunks) {
+      raster_predictions[cell_index] <- predict(
+        dem_model,
+        newdata = data.frame(
+          Easting = raster_xy[cell_index, 1],
+          Northing = raster_xy[cell_index, 2]
+        )
+      )
+    }
+    terra::values(dem_raster) <- raster_predictions
+    dem_raster <- terra::mask(dem_raster, terra::vect(survey_footprint), touches = TRUE)
     names(dem_raster) <- "Elevation_DEM"
     terra::writeRaster(
       dem_raster,
@@ -210,15 +225,18 @@ if (requireNamespace("sf", quietly = TRUE)) {
 
     dem_profile <- tibble(
       metric = c(
-        "method", "source_crs", "resolution_m", "grid_cells",
+        "method", "source_crs", "resolution_m", "web_display_resolution_m",
+        "raster_cells", "web_grid_cells",
         "minimum_dem_elevation", "mean_dem_elevation", "maximum_dem_elevation",
         "median_prediction_se"
       ),
       value = as.character(c(
         "Thin-plate regression spline (GAM REML)",
         "WGS 84 / UTM zone 43N (EPSG:32643)",
-        dem_resolution_m, nrow(dem_grid), min(dem_grid$Elevation_DEM),
-        mean(dem_grid$Elevation_DEM), max(dem_grid$Elevation_DEM),
+        dem_resolution_m, dem_web_resolution_m, terra::ncell(dem_raster), nrow(dem_grid),
+        terra::global(dem_raster, "min", na.rm = TRUE)[1, 1],
+        terra::global(dem_raster, "mean", na.rm = TRUE)[1, 1],
+        terra::global(dem_raster, "max", na.rm = TRUE)[1, 1],
         median(dem_grid$Prediction_SE)
       ))
     )

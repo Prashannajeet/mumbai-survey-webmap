@@ -393,7 +393,7 @@ with filter_layer:
     map_layer = st.selectbox(
         "Map layer",
         layer_options,
-        help="The bundled DEM is a 20 m thin-plate spline surface in UTM Zone 43N.",
+        help="The analytical DEM is 2 m in UTM Zone 43N; the web layer uses a 20 m display sample.",
     )
 with filter_upload:
     st.markdown("<div style='height:1.52rem'></div>", unsafe_allow_html=True)
@@ -451,7 +451,7 @@ with map_col:
     if map_layer == "Points":
         st.caption("Wheel zoom · Drag pan · Toolbar: zoom, reset, fullscreen, export")
     else:
-        st.caption("20 m smooth DEM · Thin-plate spline · Hover for prediction uncertainty")
+        st.caption("2 m DEM · 20 m web display sample · Hover for prediction uncertainty")
     st.plotly_chart(
         map_figure(filtered, colour_by, basemap_label, dem_surface, map_layer),
         config=MAP_CONFIG,

@@ -1,9 +1,11 @@
 metric,value
 method,Thin-plate regression spline (GAM REML)
 source_crs,WGS 84 / UTM zone 43N (EPSG:32643)
-resolution_m,20
-grid_cells,10142
-minimum_dem_elevation,2.25099442696639
-mean_dem_elevation,11.8266227734683
-maximum_dem_elevation,30.8591897525038
+resolution_m,2
+web_display_resolution_m,20
+raster_cells,1406018
+web_grid_cells,10142
+minimum_dem_elevation,2.22226478672398
+mean_dem_elevation,11.8191529300918
+maximum_dem_elevation,30.86700750781
 median_prediction_se,1.51886148533808

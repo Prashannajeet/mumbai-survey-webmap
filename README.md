@@ -14,7 +14,8 @@ resulting GeoJSON for interactive exploration.
 4. Select **Deploy**. No secrets or external database are required.
 
 The committed GeoJSON is the default online dataset. Use **Update data** for a
-temporary browser-session update. The separate **Deliverables** control keeps
+temporary browser-session update. The prominent **Deliverables Centre** opens
+a dedicated modal workspace that keeps
 the approved report, two A1 map sheets, vector Shapefile package, and complete
 client-delivery archive together in one location. Uploaded survey data is not
 written back to GitHub or retained after the session ends.

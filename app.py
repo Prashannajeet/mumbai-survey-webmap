@@ -79,25 +79,45 @@ st.markdown(
     """
     <style>
     html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {height:100vh; overflow:hidden;}
-    [data-testid="stAppViewContainer"] {background:#eef3f7;}
+    [data-testid="stAppViewContainer"] {
+        background:
+            radial-gradient(circle at 8% 4%, rgba(38,166,154,.13), transparent 24%),
+            radial-gradient(circle at 92% 8%, rgba(244,180,0,.12), transparent 23%),
+            linear-gradient(145deg,#eef6f7 0%,#f5f7fb 52%,#edf1f7 100%);
+    }
     .block-container {position:fixed; inset:0; width:100%; height:100vh; padding:0.65rem 0.85rem 0.45rem; max-width:1600px; overflow:hidden;}
     [data-testid="stSidebar"], [data-testid="collapsedControl"] {display:none;}
     [data-testid="stHeader"] {height:0; min-height:0;}
     [data-testid="stToolbar"] {top:0.2rem; right:0.4rem;}
-    [data-testid="stMetric"] {background:#fff; border:1px solid #dce5eb; border-left:3px solid #1f7a8c; padding:8px 12px; border-radius:10px; box-shadow:0 2px 8px rgba(11,34,57,.06);}
-    [data-testid="stMetricLabel"] {color:#526b7a; font-size:.76rem; font-weight:600; letter-spacing:.02em;}
-    [data-testid="stMetricValue"] {color:#0b2239; font-weight:650;}
     [data-testid="stPlotlyChart"] {border:0 !important; box-shadow:none !important;}
     h1, h2, h3, h4 {color:#17212b; margin:0 !important;}
     h1 {font-size:1.75rem !important; line-height:1.1 !important;}
     h3 {font-size:1.05rem !important; line-height:1.35 !important; min-height:1.45rem; padding:0.1rem 0 0.25rem !important;}
     h4 {font-size:0.95rem !important; padding:0 !important;}
     .source-note {font-size:.76rem; color:#64717d; margin-bottom:0.15rem;}
-    .dashboard-hero {display:flex; align-items:center; justify-content:space-between; gap:1rem; background:#0b2239; color:#fff; padding:.65rem .85rem; border-radius:12px; box-shadow:0 5px 16px rgba(11,34,57,.16);}
+    .dashboard-hero {display:flex; align-items:center; justify-content:space-between; gap:1rem; background:linear-gradient(112deg,#09263c 0%,#0b5664 58%,#147d78 100%); color:#fff; padding:.72rem .9rem; border-radius:14px; border:1px solid rgba(255,255,255,.16); box-shadow:0 8px 22px rgba(11,34,57,.20);}
     .hero-spacer {height:.55rem;}
     .dashboard-title {font-size:1.35rem; line-height:1.1; font-weight:700; letter-spacing:-.02em;}
     .dashboard-meta {font-size:.73rem; color:#b9c8d3; margin-top:.18rem;}
-    .status-pill {white-space:nowrap; color:#d9f1f0; background:#164b5a; border:1px solid #2b7e88; border-radius:999px; padding:.28rem .62rem; font-size:.7rem; font-weight:650;}
+    .status-pill {white-space:nowrap; color:#17313a; background:linear-gradient(135deg,#fff3c4,#ffd66b); border:1px solid #ffe098; border-radius:999px; padding:.32rem .7rem; font-size:.7rem; font-weight:750; box-shadow:0 3px 10px rgba(0,0,0,.12);}
+    .workspace-strip {display:grid; grid-template-columns:1.25fr 1fr 1fr 1.25fr; gap:.42rem; margin:0 0 .38rem;}
+    .workspace-item {display:flex; align-items:center; gap:.42rem; min-height:2rem; padding:.34rem .62rem; border-radius:9px; color:#fff; font-size:.72rem; font-weight:700; letter-spacing:.01em; box-shadow:0 2px 7px rgba(11,34,57,.10);}
+    .workspace-item span {font-size:.9rem;}
+    .ws-filter {background:linear-gradient(120deg,#245a78,#337e9b);}
+    .ws-map {background:linear-gradient(120deg,#087f74,#20a594);}
+    .ws-analysis {background:linear-gradient(120deg,#7451a6,#9670c5);}
+    .ws-files {background:linear-gradient(120deg,#c57908,#e8a11a);}
+    .kpi-card {height:3.75rem; display:flex; align-items:center; gap:.62rem; color:#fff; padding:.5rem .72rem; border-radius:12px; box-shadow:0 5px 13px rgba(11,34,57,.13); border:1px solid rgba(255,255,255,.22);}
+    .kpi-icon {font-size:1.2rem; width:1.75rem; height:1.75rem; border-radius:8px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.17);}
+    .kpi-label {font-size:.66rem; opacity:.88; font-weight:650; text-transform:uppercase; letter-spacing:.055em;}
+    .kpi-value {font-size:1.15rem; line-height:1.05; font-weight:760; margin-top:.08rem;}
+    .kpi-1 {background:linear-gradient(135deg,#176b87,#2495a8);}
+    .kpi-2 {background:linear-gradient(135deg,#68478d,#8f65b4);}
+    .kpi-3 {background:linear-gradient(135deg,#207a68,#32a486);}
+    .kpi-4 {background:linear-gradient(135deg,#b56b09,#dc941b);}
+    .kpi-5 {background:linear-gradient(135deg,#a94462,#d35f78);}
+    .deliverable-intro {background:linear-gradient(120deg,#e8f6f5,#fff7dc); border:1px solid #cfe7e4; border-radius:12px; padding:.7rem .85rem; color:#24424b; margin-bottom:.55rem;}
+    .deliverable-intro strong {color:#0b5664; font-size:1rem;}
     [data-testid="stVerticalBlock"] {gap:0.35rem;}
     [data-testid="stHorizontalBlock"] {gap:0.65rem;}
     .stDownloadButton button {height:2.35rem; width:100%;}
@@ -122,11 +142,13 @@ st.markdown(
     [data-testid="stSlider"] div[data-testid="stTickBarMin"], [data-testid="stSlider"] div[data-testid="stTickBarMax"] {color:#526b7a;}
     .stDownloadButton button {background:#0b2239; color:#fff; border:1px solid #0b2239; border-radius:9px; font-weight:650;}
     .stDownloadButton button:hover {background:#164b5a; color:#fff; border-color:#164b5a;}
+    .st-key-open_deliverables button {height:2.32rem; color:#17313a !important; background:linear-gradient(135deg,#ffe08a,#f4b52d) !important; border:1px solid #e4a91f !important; border-radius:10px !important; font-weight:800 !important; box-shadow:0 4px 11px rgba(190,126,4,.23) !important;}
+    .st-key-open_deliverables button:hover {transform:translateY(-1px); background:linear-gradient(135deg,#ffe9a8,#ffc74f) !important;}
+    [data-testid="stDialog"] {border-radius:16px !important;}
     </style>
     """,
     unsafe_allow_html=True,
 )
-
 
 @st.cache_data(show_spinner=False)
 def load_points(path: str, file_revision: int) -> pd.DataFrame:
@@ -207,6 +229,49 @@ def delivery_download(label: str, path: Path, mime: str, key: str) -> None:
         mime=mime,
         key=key,
         width="stretch",
+    )
+
+
+@st.dialog("Project Deliverables Centre", width="large")
+def show_deliverables() -> None:
+    st.markdown(
+        """
+        <div class="deliverable-intro">
+          <strong>Approved project outputs</strong><br>
+          Report, professional A1 maps, GIS vectors and the complete client package—organised in one place.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    report_col, maps_col = st.columns(2)
+    with report_col:
+        st.markdown("##### 📘 Survey report")
+        st.caption("Final client-ready topographical survey report")
+        delivery_download(
+            "Download final report", FINAL_REPORT_PATH,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "download_final_report"
+        )
+        st.markdown("##### 🧭 GIS data")
+        st.caption("Seven separate vector layers in UTM Zone 43N")
+        delivery_download(
+            "Download vector Shapefiles", SHAPEFILE_PACKAGE_PATH,
+            "application/zip", "download_shapes"
+        )
+    with maps_col:
+        st.markdown("##### 🗺️ Professional A1 maps")
+        st.caption("Topographic and satellite-hybrid presentation sheets")
+        delivery_download(
+            "Download topographic map", A1_TOPOGRAPHIC_PATH,
+            "application/pdf", "download_a1_topo"
+        )
+        delivery_download(
+            "Download satellite map", A1_SATELLITE_PATH,
+            "application/pdf", "download_a1_sat"
+        )
+    st.markdown("---")
+    delivery_download(
+        "📦 Download complete client package", FINAL_DELIVERY_PATH,
+        "application/zip", "download_package"
     )
 
 
@@ -368,7 +433,7 @@ def map_figure(
             hover_name="ID",
             hover_data=hover,
             zoom=INITIAL_MAP_ZOOM,
-            height=525,
+            height=500,
         )
         fig.update_coloraxes(colorbar_title="Elevation")
     else:
@@ -381,7 +446,7 @@ def map_figure(
             hover_name="ID",
             hover_data=hover,
             zoom=INITIAL_MAP_ZOOM,
-            height=525,
+            height=500,
         )
         fig.update_layout(legend_title_text="Feature code")
 
@@ -548,6 +613,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown(
+    """
+    <div class="workspace-strip">
+      <div class="workspace-item ws-filter"><span>⌁</span> Survey filters</div>
+      <div class="workspace-item ws-map"><span>◈</span> Interactive mapping</div>
+      <div class="workspace-item ws-analysis"><span>▥</span> Survey analytics</div>
+      <div class="workspace-item ws-files"><span>⬇</span> Project deliverables</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 filter_code, filter_elevation = st.columns([1, 1])
 with filter_code:
     code_options = sorted(points["Code"].unique().tolist())
@@ -635,17 +712,8 @@ with filter_upload:
                 st.rerun()
 with filter_delivery:
     st.markdown("<div style='height:1.52rem'></div>", unsafe_allow_html=True)
-    with st.popover("Deliverables", width="stretch"):
-        st.markdown("#### Project deliverables")
-        st.caption("Report, A1 maps, GIS vectors and the complete client package in one location.")
-        delivery_download(
-            "01 · Final survey report", FINAL_REPORT_PATH,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "download_final_report"
-        )
-        delivery_download("02 · A1 topographic map", A1_TOPOGRAPHIC_PATH, "application/pdf", "download_a1_topo")
-        delivery_download("03 · A1 satellite map", A1_SATELLITE_PATH, "application/pdf", "download_a1_sat")
-        delivery_download("04 · Vector Shapefiles · UTM 43N", SHAPEFILE_PACKAGE_PATH, "application/zip", "download_shapes")
-        delivery_download("05 · Complete client package", FINAL_DELIVERY_PATH, "application/zip", "download_package")
+    if st.button("📦 Deliverables Centre", key="open_deliverables", width="stretch"):
+        show_deliverables()
 
 filtered = points.loc[
     (points["Code"].isin(selected_codes) if selected_codes else points.index == points.index)
@@ -657,11 +725,19 @@ if filtered.empty:
     st.stop()
 
 metric_cols = st.columns(5)
-metric_cols[0].metric("Survey points", f"{len(filtered):,}")
-metric_cols[1].metric("Codes", f"{filtered['Code'].nunique():,}")
-metric_cols[2].metric("Min elevation", f"{filtered['Elevation'].min():.2f}")
-metric_cols[3].metric("Median elev.", f"{filtered['Elevation'].median():.2f}")
-metric_cols[4].metric("Max elevation", f"{filtered['Elevation'].max():.2f}")
+kpi_values = [
+    ("●", "Survey points", f"{len(filtered):,}", "kpi-1"),
+    ("◆", "Feature codes", f"{filtered['Code'].nunique():,}", "kpi-2"),
+    ("↓", "Minimum level", f"{filtered['Elevation'].min():.2f} m", "kpi-3"),
+    ("≈", "Median level", f"{filtered['Elevation'].median():.2f} m", "kpi-4"),
+    ("↑", "Maximum level", f"{filtered['Elevation'].max():.2f} m", "kpi-5"),
+]
+for column, (icon, label, value, colour_class) in zip(metric_cols, kpi_values):
+    column.markdown(
+        f'<div class="kpi-card {colour_class}"><div class="kpi-icon">{icon}</div>'
+        f'<div><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div></div></div>',
+        unsafe_allow_html=True,
+    )
 
 map_col, diagnostic_col = st.columns([2.3, 1])
 with map_col:
@@ -689,12 +765,12 @@ with diagnostic_col:
     histogram.update_layout(
         title="Elevation distribution",
         showlegend=False,
-        height=245,
+        height=225,
         margin={"l": 5, "r": 5, "t": 38, "b": 5},
         yaxis_title="Survey points",
         font={"size": 10},
-        paper_bgcolor=CANVAS,
-        plot_bgcolor=CANVAS,
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor="#F7FAFC",
     )
     histogram.update_xaxes(showgrid=False, linecolor="#CBD7DE", tickcolor="#CBD7DE")
     histogram.update_yaxes(gridcolor="#DCE5EA", zeroline=False, linecolor="#CBD7DE")
@@ -711,11 +787,11 @@ with diagnostic_col:
     )
     bars.update_layout(
         title="Most frequent feature codes",
-        height=245,
+        height=225,
         margin={"l": 5, "r": 15, "t": 38, "b": 5},
         font={"size": 10},
-        paper_bgcolor=CANVAS,
-        plot_bgcolor=CANVAS,
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor="#F7FAFC",
     )
     bars.update_xaxes(gridcolor="#DCE5EA", zeroline=False, linecolor="#CBD7DE")
     bars.update_yaxes(showgrid=False, linecolor="#CBD7DE")

@@ -569,7 +569,7 @@ with filter_elevation:
         step=0.1,
         format="%.1f",
     )
-filter_colour, filter_basemap, filter_layer, filter_upload = st.columns([1, 1, 0.9, 0.58])
+filter_colour, filter_basemap, filter_layer, filter_upload, filter_delivery = st.columns([1, 1, 0.9, 0.58, 0.72])
 with filter_colour:
     colour_by = st.selectbox("Map colouring", ["Elevation", "Feature code"])
 with filter_basemap:
@@ -589,62 +589,63 @@ with filter_layer:
     )
 with filter_upload:
     st.markdown("<div style='height:1.52rem'></div>", unsafe_allow_html=True)
-    with st.popover("Data & files", use_container_width=True):
-        update_tab, delivery_tab = st.tabs(["Update", "Downloads"])
-        with update_tab:
-            st.file_uploader(
-                "Survey CSV",
-                type=["csv"],
-                key="uploaded_dataset",
-                help="Expected coordinates: WGS 84 / UTM Zone 43N (EPSG:32643).",
-            )
-            st.caption("Required: ID, Northing, Easting, Elevation, Code")
-            if upload_error:
-                st.error(upload_error)
-            elif pending_upload is not None:
-                st.success(f"Active: {pending_upload.name} ({len(points):,} valid rows)")
-                if upload_duplicate_counts["flagged_rows"]:
-                    st.warning(
-                        f"{upload_duplicate_counts['flagged_rows']:,} rows need review · "
-                        f"Exact: {upload_duplicate_counts['exact_rows']:,} · "
-                        f"Repeated IDs: {upload_duplicate_counts['repeated_id_rows']:,} · "
-                        f"Repeated coordinates: {upload_duplicate_counts['repeated_coordinate_rows']:,}"
-                    )
-                    st.download_button(
-                        "Download duplicate report",
-                        data=upload_duplicate_report.to_csv(index=False).encode("utf-8"),
-                        file_name="survey_duplicate_report.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                    )
-                else:
-                    st.info("Duplicate check passed: no repeated rows, IDs, or coordinates.")
-            if st.button("Use bundled dataset", use_container_width=True):
-                st.session_state["uploaded_dataset"] = None
+    with st.popover("Update data", use_container_width=True):
+        st.file_uploader(
+            "Survey CSV",
+            type=["csv"],
+            key="uploaded_dataset",
+            help="Expected coordinates: WGS 84 / UTM Zone 43N (EPSG:32643).",
+        )
+        st.caption("Required: ID, Northing, Easting, Elevation, Code")
+        if upload_error:
+            st.error(upload_error)
+        elif pending_upload is not None:
+            st.success(f"Active: {pending_upload.name} ({len(points):,} valid rows)")
+            if upload_duplicate_counts["flagged_rows"]:
+                st.warning(
+                    f"{upload_duplicate_counts['flagged_rows']:,} rows need review · "
+                    f"Exact: {upload_duplicate_counts['exact_rows']:,} · "
+                    f"Repeated IDs: {upload_duplicate_counts['repeated_id_rows']:,} · "
+                    f"Repeated coordinates: {upload_duplicate_counts['repeated_coordinate_rows']:,}"
+                )
+                st.download_button(
+                    "Download duplicate report",
+                    data=upload_duplicate_report.to_csv(index=False).encode("utf-8"),
+                    file_name="survey_duplicate_report.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+            else:
+                st.info("Duplicate check passed: no repeated rows, IDs, or coordinates.")
+        if st.button("Use bundled dataset", use_container_width=True):
+            st.session_state["uploaded_dataset"] = None
+            st.rerun()
+        st.markdown("**Geotagged photo evidence**")
+        photo_uploads = st.file_uploader(
+            "Site photographs", type=["jpg", "jpeg", "png"], accept_multiple_files=True,
+            key="photo_evidence_upload", help="GPS EXIF metadata is required; web copies are compressed automatically.",
+        )
+        if photo_uploads and st.button("Process photo evidence", use_container_width=True):
+            saved_count, photo_errors = save_photo_evidence(photo_uploads)
+            if saved_count:
+                st.success(f"Saved {saved_count} new geotagged photographs.")
+            for error in photo_errors:
+                st.warning(error)
+            if saved_count:
                 st.rerun()
-            st.markdown("**Geotagged photo evidence**")
-            photo_uploads = st.file_uploader(
-                "Site photographs", type=["jpg", "jpeg", "png"], accept_multiple_files=True,
-                key="photo_evidence_upload", help="GPS EXIF metadata is required; web copies are compressed automatically.",
-            )
-            if photo_uploads and st.button("Process photo evidence", use_container_width=True):
-                saved_count, photo_errors = save_photo_evidence(photo_uploads)
-                if saved_count:
-                    st.success(f"Saved {saved_count} new geotagged photographs.")
-                for error in photo_errors:
-                    st.warning(error)
-                if saved_count:
-                    st.rerun()
-        with delivery_tab:
-            st.caption("Approved project outputs")
-            delivery_download(
-                "Final survey report", FINAL_REPORT_PATH,
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "download_final_report"
-            )
-            delivery_download("A1 map 01 · Topographic", A1_TOPOGRAPHIC_PATH, "application/pdf", "download_a1_topo")
-            delivery_download("A1 map 02 · Satellite", A1_SATELLITE_PATH, "application/pdf", "download_a1_sat")
-            delivery_download("Vector shapefiles · UTM 43N", SHAPEFILE_PACKAGE_PATH, "application/zip", "download_shapes")
-            delivery_download("Complete client package", FINAL_DELIVERY_PATH, "application/zip", "download_package")
+with filter_delivery:
+    st.markdown("<div style='height:1.52rem'></div>", unsafe_allow_html=True)
+    with st.popover("Deliverables", use_container_width=True):
+        st.markdown("#### Project deliverables")
+        st.caption("Report, A1 maps, GIS vectors and the complete client package in one location.")
+        delivery_download(
+            "01 · Final survey report", FINAL_REPORT_PATH,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "download_final_report"
+        )
+        delivery_download("02 · A1 topographic map", A1_TOPOGRAPHIC_PATH, "application/pdf", "download_a1_topo")
+        delivery_download("03 · A1 satellite map", A1_SATELLITE_PATH, "application/pdf", "download_a1_sat")
+        delivery_download("04 · Vector Shapefiles · UTM 43N", SHAPEFILE_PACKAGE_PATH, "application/zip", "download_shapes")
+        delivery_download("05 · Complete client package", FINAL_DELIVERY_PATH, "application/zip", "download_package")
 
 filtered = points.loc[
     (points["Code"].isin(selected_codes) if selected_codes else points.index == points.index)

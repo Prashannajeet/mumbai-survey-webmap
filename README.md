@@ -13,10 +13,11 @@ resulting GeoJSON for interactive exploration.
 3. Set the branch to `main` and the entrypoint to `app.py`.
 4. Select **Deploy**. No secrets or external database are required.
 
-The committed GeoJSON is the default online dataset. Open **Data & files** to
-update the browser session or download the approved report, two A1 map sheets,
-vector Shapefile package, and complete client-delivery archive. Uploaded survey
-data is not written back to GitHub or retained after the session ends.
+The committed GeoJSON is the default online dataset. Use **Update data** for a
+temporary browser-session update. The separate **Deliverables** control keeps
+the approved report, two A1 map sheets, vector Shapefile package, and complete
+client-delivery archive together in one location. Uploaded survey data is not
+written back to GitHub or retained after the session ends.
 
 ## Coordinate system
 

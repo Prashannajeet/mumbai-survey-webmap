@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from io import BytesIO
 from pathlib import Path
@@ -8,12 +9,24 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from PIL import Image, ImageOps
 from pyproj import Transformer
 
 
 ROOT = Path(__file__).resolve().parent
 GEOJSON_PATH = ROOT / "output" / "mumbai_survey_points.geojson"
 DEM_WEB_PATH = ROOT / "output" / "mumbai_survey_dem_web.csv"
+DSM_WEB_PATH = ROOT / "output" / "mumbai_survey_dsm_web.csv"
+CONTOUR_PATH = ROOT / "output" / "mumbai_survey_contours_wgs84.geojson"
+PHOTO_ROOT = ROOT / "data" / "site_photos"
+PHOTO_WEB_DIR = PHOTO_ROOT / "web"
+PHOTO_THUMB_DIR = PHOTO_ROOT / "thumbnails"
+PHOTO_MANIFEST = PHOTO_ROOT / "photo_evidence_manifest.csv"
+FINAL_REPORT_PATH = ROOT / "deliverables" / "Kurla_Topographical_Survey_Report_Final.docx"
+A1_TOPOGRAPHIC_PATH = ROOT / "output" / "pdf" / "Kurla_A1_Site_Map_01_Topographic.pdf"
+A1_SATELLITE_PATH = ROOT / "output" / "pdf" / "Kurla_A1_Site_Map_02_Satellite_Hybrid.pdf"
+SHAPEFILE_PACKAGE_PATH = ROOT / "deliverables" / "Kurla_Vector_Shapefiles_UTM43N.zip"
+FINAL_DELIVERY_PATH = ROOT / "Final_Deliverable_Kurla_2026-10-05_A1.zip"
 SOURCE_CRS = "WGS 84 / UTM Zone 43N (EPSG:32643)"
 WEB_CRS = "WGS 84 (EPSG:4326)"
 UTM_TO_WGS84 = Transformer.from_crs(32643, 4326, always_xy=True)
@@ -56,7 +69,7 @@ MAP_CONFIG = {
 
 
 st.set_page_config(
-    page_title="Mumbai Survey Web Map",
+    page_title="Kurla Topographical Survey Dashboard",
     page_icon="🗺️",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -158,6 +171,113 @@ def load_dem(path: str, file_revision: int) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
+def load_dsm(path: str, file_revision: int) -> pd.DataFrame:
+    del file_revision
+    frame = pd.read_csv(path)
+    required = {"Easting", "Northing", "Elevation_DSM", "longitude", "latitude"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"DSM is missing required fields: {', '.join(sorted(missing))}")
+    for column in required:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    return frame.dropna(subset=list(required))
+
+
+@st.cache_data(show_spinner=False)
+def load_contours(path: str, file_revision: int) -> list[dict]:
+    del file_revision
+    with open(path, "r", encoding="utf-8") as handle:
+        return json.load(handle).get("features", [])
+
+
+@st.cache_data(show_spinner=False)
+def load_delivery_file(path: str, file_revision: int) -> bytes:
+    del file_revision
+    return Path(path).read_bytes()
+
+
+def delivery_download(label: str, path: Path, mime: str, key: str) -> None:
+    if not path.exists():
+        st.caption(f"Unavailable: {label}")
+        return
+    st.download_button(
+        label,
+        data=load_delivery_file(str(path), path.stat().st_mtime_ns),
+        file_name=path.name,
+        mime=mime,
+        key=key,
+        use_container_width=True,
+    )
+
+
+def _gps_decimal(values, reference: str) -> float:
+    degrees, minutes, seconds = (float(value) for value in values)
+    coordinate = degrees + minutes / 60 + seconds / 3600
+    return -coordinate if reference.upper() in {"S", "W"} else coordinate
+
+
+def read_photo_location(raw: bytes) -> dict:
+    with Image.open(BytesIO(raw)) as image:
+        exif = image.getexif()
+        gps = exif.get_ifd(34853) if exif and 34853 in exif else {}
+        if not all(key in gps for key in (1, 2, 3, 4)):
+            raise ValueError("no usable GPS coordinates in EXIF metadata")
+        return {
+            "latitude": _gps_decimal(gps[2], gps[1]),
+            "longitude": _gps_decimal(gps[4], gps[3]),
+            "altitude": float(gps.get(6)) if gps.get(6) is not None else None,
+            "captured_at": str(exif.get(36867) or exif.get(306) or ""),
+        }
+
+
+@st.cache_data(show_spinner=False)
+def load_photo_manifest(path: str, file_revision: int) -> pd.DataFrame:
+    del file_revision
+    if not Path(path).exists():
+        return pd.DataFrame(columns=["photo_id", "original_name", "latitude", "longitude", "thumbnail"])
+    frame = pd.read_csv(path)
+    for column in ["latitude", "longitude", "altitude", "original_bytes", "web_bytes"]:
+        if column in frame:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    return frame.dropna(subset=["latitude", "longitude"])
+
+
+def save_photo_evidence(uploaded_files) -> tuple[int, list[str]]:
+    PHOTO_WEB_DIR.mkdir(parents=True, exist_ok=True)
+    PHOTO_THUMB_DIR.mkdir(parents=True, exist_ok=True)
+    existing = pd.read_csv(PHOTO_MANIFEST) if PHOTO_MANIFEST.exists() else pd.DataFrame()
+    known_hashes = set(existing.get("sha256", pd.Series(dtype=str)).astype(str))
+    records, errors = [], []
+    for uploaded in uploaded_files:
+        raw = uploaded.getvalue()
+        digest = hashlib.sha256(raw).hexdigest()
+        if digest in known_hashes:
+            continue
+        try:
+            location = read_photo_location(raw)
+            with Image.open(BytesIO(raw)) as source:
+                image = ImageOps.exif_transpose(source).convert("RGB")
+                web = image.copy(); web.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+                thumb = image.copy(); thumb.thumbnail((360, 360), Image.Resampling.LANCZOS)
+                stem = f"{digest[:12]}_{Path(uploaded.name).stem[:50]}"
+                web_name, thumb_name = f"{stem}.jpg", f"{stem}_thumb.jpg"
+                web.save(PHOTO_WEB_DIR / web_name, "JPEG", quality=80, optimize=True, progressive=True)
+                thumb.save(PHOTO_THUMB_DIR / thumb_name, "JPEG", quality=72, optimize=True)
+            records.append({
+                "photo_id": digest[:12], "original_name": uploaded.name, "sha256": digest, **location,
+                "web_image": f"web/{web_name}", "thumbnail": f"thumbnails/{thumb_name}",
+                "original_bytes": len(raw), "web_bytes": (PHOTO_WEB_DIR / web_name).stat().st_size,
+            })
+            known_hashes.add(digest)
+        except Exception as exc:
+            errors.append(f"{uploaded.name}: {exc}")
+    if records:
+        pd.concat([existing, pd.DataFrame(records)], ignore_index=True).to_csv(PHOTO_MANIFEST, index=False)
+        load_photo_manifest.clear()
+    return len(records), errors
+
+
+@st.cache_data(show_spinner=False)
 def load_uploaded_csv(raw: bytes) -> pd.DataFrame:
     frame = pd.read_csv(BytesIO(raw))
     normalized = {str(column).strip().lower(): column for column in frame.columns}
@@ -221,6 +341,9 @@ def map_figure(
     colour_by: str,
     basemap: str,
     dem: pd.DataFrame | None = None,
+    contours: list[dict] | None = None,
+    dsm: pd.DataFrame | None = None,
+    photos: pd.DataFrame | None = None,
     map_layer: str = "Points",
 ) -> go.Figure:
     hover = {
@@ -233,7 +356,7 @@ def map_figure(
         "longitude": False,
     }
     if colour_by == "Elevation":
-        fig = px.scatter_map(
+        fig = px.scatter_mapbox(
             data,
             lat="latitude",
             lon="longitude",
@@ -249,7 +372,7 @@ def map_figure(
         )
         fig.update_coloraxes(colorbar_title="Elevation")
     else:
-        fig = px.scatter_map(
+        fig = px.scatter_mapbox(
             data,
             lat="latitude",
             lon="longitude",
@@ -262,12 +385,12 @@ def map_figure(
         )
         fig.update_layout(legend_title_text="Feature code")
 
-    if map_layer == "DEM only":
+    if map_layer in {"DEM only", "Contours only", "DEM + contours", "DSM only", "DSM + contours", "Photo evidence"}:
         for trace in fig.data:
             trace.visible = False
 
-    if dem is not None and map_layer in {"DEM + points", "DEM only"}:
-        dem_trace = go.Scattermap(
+    if dem is not None and map_layer in {"DEM + points", "DEM only", "DEM + contours"}:
+        dem_trace = go.Scattermapbox(
             lat=dem["latitude"],
             lon=dem["longitude"],
             mode="markers",
@@ -294,7 +417,69 @@ def map_figure(
         fig.add_trace(dem_trace)
         fig.data = (fig.data[-1],) + fig.data[:-1]
 
+    if contours is not None and map_layer in {"Contours + points", "Contours only", "DEM + contours", "DSM + contours"}:
+        for index_value, colour, width, label in [
+            (False, "#657786", 1.0, "0.5 m contours"),
+            (True, "#17212B", 2.1, "2 m index contours"),
+        ]:
+            latitudes, longitudes, elevations = [], [], []
+            for feature in contours:
+                props = feature.get("properties", {})
+                if bool(props.get("Index_contour")) != index_value:
+                    continue
+                geometry = feature.get("geometry", {})
+                lines = geometry.get("coordinates", [])
+                if geometry.get("type") == "LineString":
+                    lines = [lines]
+                for line in lines:
+                    for lon, lat, *_ in line:
+                        longitudes.append(lon); latitudes.append(lat); elevations.append(props.get("Elevation"))
+                    longitudes.append(None); latitudes.append(None); elevations.append(None)
+            fig.add_trace(go.Scattermapbox(
+                lat=latitudes, lon=longitudes, mode="lines", name=label,
+                line={"color": colour, "width": width},
+                customdata=elevations,
+                hovertemplate="Contour: %{customdata:.1f} m<extra></extra>",
+            ))
+
+    if dsm is not None and map_layer in {"DSM only", "DSM + points", "DSM + contours"}:
+        fig.add_trace(go.Scattermapbox(
+            lat=dsm["latitude"], lon=dsm["longitude"], mode="markers", name="Survey-derived DSM",
+            marker={"size": 7, "color": dsm["Elevation_DSM"], "colorscale": "Turbo", "opacity": 0.76,
+                    "showscale": True, "colorbar": {"title": "DSM elevation"}},
+            customdata=dsm[["Easting", "Northing", "Elevation_DSM"]],
+            hovertemplate=("DSM elevation: %{customdata[2]:.2f}<br>Easting: %{customdata[0]:.1f}<br>"
+                           "Northing: %{customdata[1]:.1f}<extra></extra>"),
+        ))
+
+    if photos is not None and not photos.empty and map_layer in {"Points + photos", "Photo evidence"}:
+        fig.add_trace(go.Scattermapbox(
+            lat=photos["latitude"], lon=photos["longitude"], mode="markers", name="Photo evidence",
+            marker={"size": 15, "color": "#D9485F", "symbol": "circle"},
+            customdata=photos[["photo_id", "original_name", "captured_at"]].fillna(""),
+            hovertemplate=("Photo: %{customdata[1]}<br>ID: %{customdata[0]}<br>"
+                           "Captured: %{customdata[2]}<extra></extra>"),
+        ))
+
     fig.update_traces(marker={"size": 9, "opacity": 0.88})
+    controls = data.loc[data["Code"].str.contains(r"TBM|BM", regex=True, na=False)].copy()
+    if not controls.empty:
+        fig.add_trace(go.Scattermapbox(
+            lat=controls["latitude"],
+            lon=controls["longitude"],
+            mode="markers+text",
+            name="BM / TBM control",
+            text=controls["Code"],
+            textposition="top right",
+            textfont={"size": 16, "color": "#8B1E2D"},
+            marker={"size": 22, "color": "#FFD54F", "symbol": "square", "opacity": 1.0},
+            customdata=controls[["ID", "Code", "Easting", "Northing", "Elevation"]],
+            hovertemplate=(
+                "Control: %{customdata[1]}<br>ID: %{customdata[0]}<br>"
+                "Easting: %{customdata[2]:.3f}<br>Northing: %{customdata[3]:.3f}<br>"
+                "Elevation: %{customdata[4]:.3f}<extra></extra>"
+            ),
+        ))
     map_layout = {
         "style": "open-street-map" if basemap == "OpenStreetMap" else "carto-positron",
         "center": {
@@ -320,7 +505,7 @@ def map_figure(
         }
 
     fig.update_layout(
-        map=map_layout,
+        mapbox=map_layout,
         dragmode="pan",
         uirevision="preserve-map-view",
         margin={"l": 0, "r": 0, "t": 0, "b": 0},
@@ -334,12 +519,16 @@ def map_figure(
 try:
     points = load_points(str(GEOJSON_PATH), GEOJSON_PATH.stat().st_mtime_ns)
     dem_surface = load_dem(str(DEM_WEB_PATH), DEM_WEB_PATH.stat().st_mtime_ns)
+    dsm_surface = load_dsm(str(DSM_WEB_PATH), DSM_WEB_PATH.stat().st_mtime_ns)
+    contour_features = load_contours(str(CONTOUR_PATH), CONTOUR_PATH.stat().st_mtime_ns)
+    photo_revision = PHOTO_MANIFEST.stat().st_mtime_ns if PHOTO_MANIFEST.exists() else 0
+    photo_evidence = load_photo_manifest(str(PHOTO_MANIFEST), photo_revision)
 except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
     st.error(f"Dashboard data could not be loaded: {exc}")
     st.info("Run `Rscript mumbai_survey_analysis.R` to regenerate the GIS outputs.")
     st.stop()
 
-active_source = "Bundled survey · 31 Aug 2026"
+active_source = "Updated survey · 01 Oct 2026"
 upload_error = None
 upload_duplicate_counts = None
 upload_duplicate_report = None
@@ -353,9 +542,9 @@ if pending_upload is not None:
         upload_error = str(exc)
 
 st.markdown(
-    f'<div class="dashboard-hero"><div><div class="dashboard-title">Mumbai Survey Web Map</div>'
+    f'<div class="dashboard-hero"><div><div class="dashboard-title">Kurla Topographical Survey Dashboard</div>'
     f'<div class="dashboard-meta">{active_source} · {SOURCE_CRS} · {len(points):,} mapped records</div>'
-    f'</div><div class="status-pill">● LIVE DATA</div></div><div class="hero-spacer"></div>',
+    f'</div><div class="status-pill">● FINAL DELIVERABLES · 07 OCT 2026</div></div><div class="hero-spacer"></div>',
     unsafe_allow_html=True,
 )
 
@@ -389,7 +578,10 @@ with filter_basemap:
         ["OpenStreetMap", "Light", "ArcGIS Imagery", "ArcGIS Topographic", "ArcGIS Streets"],
     )
 with filter_layer:
-    layer_options = ["Points"] if pending_upload is not None else ["Points", "DEM + points", "DEM only"]
+    layer_options = ["Points"] if pending_upload is not None else [
+        "Points", "DEM + points", "Contours + points", "DEM + contours", "Contours only", "DEM only",
+        "DSM + points", "DSM + contours", "DSM only", "Points + photos", "Photo evidence"
+    ]
     map_layer = st.selectbox(
         "Map layer",
         layer_options,
@@ -397,37 +589,62 @@ with filter_layer:
     )
 with filter_upload:
     st.markdown("<div style='height:1.52rem'></div>", unsafe_allow_html=True)
-    with st.popover("↥ Update CSV", use_container_width=True):
-        st.file_uploader(
-            "Survey CSV",
-            type=["csv"],
-            key="uploaded_dataset",
-            help="Expected coordinates: WGS 84 / UTM Zone 43N (EPSG:32643).",
-        )
-        st.caption("Required: ID, Northing, Easting, Elevation, Code")
-        if upload_error:
-            st.error(upload_error)
-        elif pending_upload is not None:
-            st.success(f"Active: {pending_upload.name} ({len(points):,} valid rows)")
-            if upload_duplicate_counts["flagged_rows"]:
-                st.warning(
-                    f"{upload_duplicate_counts['flagged_rows']:,} rows need review · "
-                    f"Exact: {upload_duplicate_counts['exact_rows']:,} · "
-                    f"Repeated IDs: {upload_duplicate_counts['repeated_id_rows']:,} · "
-                    f"Repeated coordinates: {upload_duplicate_counts['repeated_coordinate_rows']:,}"
-                )
-                st.download_button(
-                    "Download duplicate report",
-                    data=upload_duplicate_report.to_csv(index=False).encode("utf-8"),
-                    file_name="survey_duplicate_report.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
-            else:
-                st.info("Duplicate check passed: no repeated rows, IDs, or coordinates.")
-        if st.button("Use bundled dataset", use_container_width=True):
-            st.session_state["uploaded_dataset"] = None
-            st.rerun()
+    with st.popover("Data & files", use_container_width=True):
+        update_tab, delivery_tab = st.tabs(["Update", "Downloads"])
+        with update_tab:
+            st.file_uploader(
+                "Survey CSV",
+                type=["csv"],
+                key="uploaded_dataset",
+                help="Expected coordinates: WGS 84 / UTM Zone 43N (EPSG:32643).",
+            )
+            st.caption("Required: ID, Northing, Easting, Elevation, Code")
+            if upload_error:
+                st.error(upload_error)
+            elif pending_upload is not None:
+                st.success(f"Active: {pending_upload.name} ({len(points):,} valid rows)")
+                if upload_duplicate_counts["flagged_rows"]:
+                    st.warning(
+                        f"{upload_duplicate_counts['flagged_rows']:,} rows need review · "
+                        f"Exact: {upload_duplicate_counts['exact_rows']:,} · "
+                        f"Repeated IDs: {upload_duplicate_counts['repeated_id_rows']:,} · "
+                        f"Repeated coordinates: {upload_duplicate_counts['repeated_coordinate_rows']:,}"
+                    )
+                    st.download_button(
+                        "Download duplicate report",
+                        data=upload_duplicate_report.to_csv(index=False).encode("utf-8"),
+                        file_name="survey_duplicate_report.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                    )
+                else:
+                    st.info("Duplicate check passed: no repeated rows, IDs, or coordinates.")
+            if st.button("Use bundled dataset", use_container_width=True):
+                st.session_state["uploaded_dataset"] = None
+                st.rerun()
+            st.markdown("**Geotagged photo evidence**")
+            photo_uploads = st.file_uploader(
+                "Site photographs", type=["jpg", "jpeg", "png"], accept_multiple_files=True,
+                key="photo_evidence_upload", help="GPS EXIF metadata is required; web copies are compressed automatically.",
+            )
+            if photo_uploads and st.button("Process photo evidence", use_container_width=True):
+                saved_count, photo_errors = save_photo_evidence(photo_uploads)
+                if saved_count:
+                    st.success(f"Saved {saved_count} new geotagged photographs.")
+                for error in photo_errors:
+                    st.warning(error)
+                if saved_count:
+                    st.rerun()
+        with delivery_tab:
+            st.caption("Approved project outputs")
+            delivery_download(
+                "Final survey report", FINAL_REPORT_PATH,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "download_final_report"
+            )
+            delivery_download("A1 map 01 · Topographic", A1_TOPOGRAPHIC_PATH, "application/pdf", "download_a1_topo")
+            delivery_download("A1 map 02 · Satellite", A1_SATELLITE_PATH, "application/pdf", "download_a1_sat")
+            delivery_download("Vector shapefiles · UTM 43N", SHAPEFILE_PACKAGE_PATH, "application/zip", "download_shapes")
+            delivery_download("Complete client package", FINAL_DELIVERY_PATH, "application/zip", "download_package")
 
 filtered = points.loc[
     (points["Code"].isin(selected_codes) if selected_codes else points.index == points.index)
@@ -445,7 +662,7 @@ metric_cols[2].metric("Min elevation", f"{filtered['Elevation'].min():.2f}")
 metric_cols[3].metric("Median elev.", f"{filtered['Elevation'].median():.2f}")
 metric_cols[4].metric("Max elevation", f"{filtered['Elevation'].max():.2f}")
 
-map_col, diagnostic_col = st.columns([2.3, 1], vertical_alignment="top")
+map_col, diagnostic_col = st.columns([2.3, 1])
 with map_col:
     st.subheader("Full survey extent")
     if map_layer == "Points":
@@ -453,7 +670,8 @@ with map_col:
     else:
         st.caption("2 m DEM · 20 m web display sample · Hover for prediction uncertainty")
     st.plotly_chart(
-        map_figure(filtered, colour_by, basemap_label, dem_surface, map_layer),
+        map_figure(filtered, colour_by, basemap_label, dem_surface, contour_features, dsm_surface,
+                   photo_evidence, map_layer),
         config=MAP_CONFIG,
         key="survey_navigation_map",
     )
@@ -519,3 +737,30 @@ with diagnostic_col:
         file_name="mumbai_survey_filtered.csv",
         mime="text/csv",
     )
+    if not photo_evidence.empty:
+        with st.expander(f"📷 Photo evidence viewer · {len(photo_evidence):,}", expanded=False):
+            photo_labels = {
+                f"{row['photo_id']} · {row['original_name']}": index
+                for index, row in photo_evidence.iterrows()
+            }
+            selected_photo_label = st.selectbox(
+                "Select mapped photograph", list(photo_labels), key="selected_photo_evidence"
+            )
+            selected_photo = photo_evidence.loc[photo_labels[selected_photo_label]]
+            web_image = PHOTO_ROOT / str(selected_photo["web_image"])
+            if web_image.exists():
+                st.image(str(web_image), caption=selected_photo["original_name"], use_container_width=True)
+            st.caption(
+                f"Evidence ID: {selected_photo['photo_id']} · "
+                f"Captured: {selected_photo.get('captured_at', '')} · "
+                f"GPS: {selected_photo['latitude']:.6f}, {selected_photo['longitude']:.6f}"
+            )
+            if web_image.exists():
+                st.download_button(
+                    "Download selected photograph", web_image.read_bytes(), web_image.name,
+                    "image/jpeg", use_container_width=True,
+                )
+            st.download_button(
+                "Download evidence manifest", photo_evidence.to_csv(index=False).encode("utf-8"),
+                "photo_evidence_manifest.csv", "text/csv", use_container_width=True,
+            )

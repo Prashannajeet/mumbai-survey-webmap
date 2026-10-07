@@ -8,7 +8,7 @@ suppressPackageStartupMessages({
 })
 
 project_dir <- "/Users/prashannajeet/Documents/Projects/Amit-Kurla"
-input_file <- file.path(project_dir, "data", "rtk_31-08-2026", "RTK_KURLA_MERGED_DEDUPLICATED_31-08-2026.csv")
+input_file <- file.path(project_dir, "data", "rtk_01-10-2026", "RTK_KURLA_FINAL_UPDATED_01-10-2026.csv")
 output_dir <- file.path(project_dir, "output")
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -16,6 +16,8 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 source_epsg <- 32643
 dem_resolution_m <- 2
 dem_web_resolution_m <- 20
+contour_interval_m <- 0.5
+index_contour_interval_m <- 2
 
 survey <- read_csv(
   input_file,
@@ -216,7 +218,19 @@ if (requireNamespace("sf", quietly = TRUE)) {
     }
     terra::values(dem_raster) <- raster_predictions
     dem_raster <- terra::mask(dem_raster, terra::vect(survey_footprint), touches = TRUE)
+    # Apply a restrained Gaussian surface filter to suppress cell-scale noise
+    # without changing the 2 m analytical grid or the source spot levels.
+    gaussian_axis <- -2:2
+    gaussian_weights <- outer(gaussian_axis, gaussian_axis, function(x, y) exp(-(x^2 + y^2) / 2))
+    gaussian_weights <- gaussian_weights / sum(gaussian_weights)
+    dem_raster <- terra::focal(dem_raster, w = gaussian_weights, fun = "mean", na.policy = "omit", na.rm = TRUE)
+    dem_raster <- terra::mask(dem_raster, terra::vect(survey_footprint), touches = TRUE)
     names(dem_raster) <- "Elevation_DEM"
+    web_sample_points <- terra::vect(dem_grid, geom = c("Easting", "Northing"), crs = paste0("EPSG:", source_epsg))
+    smoothed_web_values <- terra::extract(dem_raster, web_sample_points)[[2]]
+    dem_web$Elevation_DEM <- smoothed_web_values
+    dem_web <- dem_web[is.finite(dem_web$Elevation_DEM), , drop = FALSE]
+    write_csv(dem_web, file.path(output_dir, "mumbai_survey_dem_web.csv"))
     terra::writeRaster(
       dem_raster,
       file.path(output_dir, "mumbai_survey_dem_utm43n.tif"),
@@ -224,12 +238,74 @@ if (requireNamespace("sf", quietly = TRUE)) {
       gdal = c("COMPRESS=DEFLATE", "PREDICTOR=3")
     )
 
+    contour_levels <- seq(
+      floor(terra::global(dem_raster, "min", na.rm = TRUE)[1, 1] / contour_interval_m) * contour_interval_m,
+      ceiling(terra::global(dem_raster, "max", na.rm = TRUE)[1, 1] / contour_interval_m) * contour_interval_m,
+      by = contour_interval_m
+    )
+    contour_lines <- terra::as.contour(dem_raster, levels = contour_levels)
+    contours_sf <- sf::st_as_sf(contour_lines)
+    elevation_field <- setdiff(names(contours_sf), attr(contours_sf, "sf_column"))[1]
+    names(contours_sf)[names(contours_sf) == elevation_field] <- "Elevation"
+    contours_sf$Index_contour <- abs(contours_sf$Elevation / index_contour_interval_m -
+      round(contours_sf$Elevation / index_contour_interval_m)) < 1e-8
+    contours_wgs84 <- sf::st_transform(contours_sf, 4326)
+    sf::st_write(contours_sf, file.path(output_dir, "mumbai_survey_contours_utm43n.gpkg"),
+                 layer = "contours_0_5m", delete_dsn = TRUE, quiet = TRUE)
+    sf::st_write(contours_wgs84, file.path(output_dir, "mumbai_survey_contours_wgs84.geojson"),
+                 delete_dsn = TRUE, quiet = TRUE)
+
+    # Survey-derived DSM proxy. A higher-rank smooth retains more local surface
+    # variation than the terrain DEM; it remains a point-survey interpolation,
+    # not a photogrammetric or LiDAR first-return DSM.
+    dsm_model <- mgcv::gam(
+      Elevation ~ s(Easting, Northing, bs = "tp", k = min(400, nrow(valid_points) - 1)),
+      data = valid_points, method = "REML"
+    )
+    dsm_values <- numeric(terra::ncell(dem_raster))
+    for (cell_index in prediction_chunks) {
+      dsm_values[cell_index] <- predict(
+        dsm_model,
+        newdata = data.frame(Easting = raster_xy[cell_index, 1], Northing = raster_xy[cell_index, 2])
+      )
+    }
+    dsm_raster <- terra::rast(dem_raster)
+    terra::values(dsm_raster) <- dsm_values
+    dsm_raster <- terra::mask(dsm_raster, terra::vect(survey_footprint), touches = TRUE)
+    dsm_weights <- matrix(c(1, 2, 1, 2, 4, 2, 1, 2, 1), nrow = 3) / 16
+    dsm_raster <- terra::focal(dsm_raster, w = dsm_weights, fun = "mean", na.policy = "omit", na.rm = TRUE)
+    dsm_raster <- terra::mask(dsm_raster, terra::vect(survey_footprint), touches = TRUE)
+    names(dsm_raster) <- "Elevation_DSM"
+    terra::writeRaster(
+      dsm_raster, file.path(output_dir, "mumbai_survey_dsm_utm43n.tif"), overwrite = TRUE,
+      gdal = c("COMPRESS=DEFLATE", "PREDICTOR=3")
+    )
+    dsm_web_values <- terra::extract(dsm_raster, web_sample_points)[[2]]
+    dsm_web <- dem_web
+    dsm_web$Elevation_DSM <- dsm_web_values[is.finite(smoothed_web_values)]
+    dsm_web <- dsm_web[is.finite(dsm_web$Elevation_DSM), , drop = FALSE]
+    write_csv(dsm_web %>% select(Easting, Northing, Elevation_DSM, longitude, latitude),
+              file.path(output_dir, "mumbai_survey_dsm_web.csv"))
+    dsm_profile <- tibble(
+      metric = c("product", "method", "source_crs", "resolution_m", "surface_filter",
+                 "minimum_dsm_elevation", "mean_dsm_elevation", "maximum_dsm_elevation"),
+      value = as.character(c(
+        "Survey-derived DSM proxy", "Higher-rank thin-plate regression spline (GAM REML)",
+        "WGS 84 / UTM zone 43N (EPSG:32643)", dem_resolution_m, "3 x 3 Gaussian filter",
+        terra::global(dsm_raster, "min", na.rm = TRUE)[1, 1],
+        terra::global(dsm_raster, "mean", na.rm = TRUE)[1, 1],
+        terra::global(dsm_raster, "max", na.rm = TRUE)[1, 1]
+      ))
+    )
+    write_csv(dsm_profile, file.path(output_dir, "dsm_profile.csv"))
+
     dem_profile <- tibble(
       metric = c(
         "method", "source_crs", "resolution_m", "web_display_resolution_m",
         "raster_cells", "web_grid_cells",
         "minimum_dem_elevation", "mean_dem_elevation", "maximum_dem_elevation",
-        "median_prediction_se"
+        "median_prediction_se", "surface_filter", "contour_interval_m", "index_contour_interval_m",
+        "contour_features"
       ),
       value = as.character(c(
         "Thin-plate regression spline (GAM REML)",
@@ -238,7 +314,8 @@ if (requireNamespace("sf", quietly = TRUE)) {
         terra::global(dem_raster, "min", na.rm = TRUE)[1, 1],
         terra::global(dem_raster, "mean", na.rm = TRUE)[1, 1],
         terra::global(dem_raster, "max", na.rm = TRUE)[1, 1],
-        median(dem_grid$Prediction_SE)
+        median(dem_grid$Prediction_SE), "5 x 5 Gaussian filter", contour_interval_m,
+        index_contour_interval_m, nrow(contours_sf)
       ))
     )
     write_csv(dem_profile, file.path(output_dir, "dem_profile.csv"))

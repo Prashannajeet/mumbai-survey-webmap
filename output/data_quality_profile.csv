@@ -1,19 +1,19 @@
 metric,value
-rows,2611
+rows,4125
 columns,8
-complete coordinate/elevation rows,2611
+complete coordinate/elevation rows,4125
 exact duplicate rows,0
-duplicate nonblank IDs,2094
-duplicate coordinate pairs,10
-distinct codes,69
+duplicate nonblank IDs,3157
+duplicate coordinate pairs,210
+distinct codes,68
 minimum easting_m,276602.125
 maximum easting_m,278535.782
 easting span_m,1933.6570000000065
 minimum northing_m,2110715.383
 maximum northing_m,2113621.941
 northing span_m,2906.5580000001937
-minimum elevation,-14.477
-median elevation,8.558
-mean elevation,10.08061126005362
-maximum elevation,35.331
-elevation IQR,5.5445
+minimum elevation,-2.538
+median elevation,8.338
+mean elevation,8.635839030303032
+maximum elevation,34.56
+elevation IQR,4.026

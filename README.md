@@ -1,7 +1,7 @@
 # Mumbai Survey Web Map
 
 Interactive Streamlit dashboard for the Mumbai/Kurla survey updated through
-31 August 2026.
+1 October 2026.
 The spatial analysis and GIS exports are generated in R; Streamlit reads the
 resulting GeoJSON for interactive exploration.
 
@@ -13,9 +13,10 @@ resulting GeoJSON for interactive exploration.
 3. Set the branch to `main` and the entrypoint to `app.py`.
 4. Select **Deploy**. No secrets or external database are required.
 
-The committed GeoJSON is the default online dataset. The **Update CSV** tool
-supports temporary browser-session updates; uploaded data is not written back
-to GitHub or retained after the session ends.
+The committed GeoJSON is the default online dataset. Open **Data & files** to
+update the browser session or download the approved report, two A1 map sheets,
+vector Shapefile package, and complete client-delivery archive. Uploaded survey
+data is not written back to GitHub or retained after the session ends.
 
 ## Coordinate system
 
@@ -43,16 +44,29 @@ need R at runtime.
 - `mumbai_survey_analysis.R`: data checks, static maps, CRS transformation,
   GeoPackage and GeoJSON exports.
 - `app.py`: Streamlit dashboard.
-- `data/rtk_31-08-2026/RTK_KURLA_MERGED_DEDUPLICATED_31-08-2026.csv`:
-  validated bundled source containing 2,611 unique survey records.
+- `data/rtk_01-10-2026/RTK_KURLA_FINAL_UPDATED_01-10-2026.csv`:
+  consolidated source containing 4,125 survey records, including the detailed
+  bed and channel observations received on 1 October 2026.
+- `integrate_additional_survey_data.R`: reproducible consolidation of the
+  additional survey file with the earlier coded survey register.
 - `output/mumbai_survey_points.geojson`: dashboard-ready spatial dataset.
 - `output/mumbai_survey_points.gpkg`: GIS-ready point layer in EPSG:32643.
 - `output/mumbai_survey_dem_utm43n.tif`: interpolated GeoTIFF DEM in EPSG:32643.
 - `output/mumbai_survey_dem_web.csv`: web-map grid with WGS 84 coordinates.
+- `deliverables/Kurla_Topographical_Survey_Report_Final.docx`: approved final
+  survey report.
+- `output/pdf/Kurla_A1_Site_Map_01_Topographic.pdf`: A1 topographic survey plan.
+- `output/pdf/Kurla_A1_Site_Map_02_Satellite_Hybrid.pdf`: A1 satellite-hybrid
+  survey plan.
+- `deliverables/Kurla_Vector_Shapefiles_UTM43N.zip`: separate vector layers for
+  survey points, control points, boundary, contours, road centreline,
+  cross-sections, and geotagged photographs.
 
 ## Dashboard capabilities
 
 - Full-area interactive web map with elevation or feature-code colouring.
+- Enlarged BM/TBM control-point squares with prominent labels and full
+  coordinate/elevation tooltips.
 - Smooth 2 m DEM generated in R with a thin-plate regression spline, available
   as points-only, DEM-plus-points, and DEM-only map views. The browser uses a
   20 m display sample for responsive interaction while the downloadable
@@ -67,6 +81,8 @@ need R at runtime.
 - Feature-code and elevation filters shared across the dashboard.
 - Elevation distribution and feature-code ranking.
 - Data-quality guardrails and downloadable filtered records.
+- Direct downloads for the final report, two A1 map sheets, the vector
+  Shapefile bundle, and the complete client package.
 - Fixed single-screen canvas with no page scrolling, sidebar, or tab frames.
 - Map and diagnostic charts remain visible together; filtered records are
   available as a CSV download.
@@ -78,3 +94,8 @@ need R at runtime.
   can be restored from the same tool.
 - Automatic upload duplicate checks for exact rows, repeated IDs, and repeated
   coordinate pairs, with a downloadable CSV report of all flagged records.
+- Persistent geotagged photo evidence ingestion. GPS and capture time are read
+  from EXIF metadata; duplicate photographs are detected by SHA-256 hash.
+  Maximum 1600 px web copies and 360 px thumbnails are stored under
+  `data/site_photos`, with locations and provenance recorded in a downloadable
+  evidence manifest. Photographs without usable GPS metadata are rejected.

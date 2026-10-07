@@ -206,7 +206,7 @@ def delivery_download(label: str, path: Path, mime: str, key: str) -> None:
         file_name=path.name,
         mime=mime,
         key=key,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -589,7 +589,7 @@ with filter_layer:
     )
 with filter_upload:
     st.markdown("<div style='height:1.52rem'></div>", unsafe_allow_html=True)
-    with st.popover("Update data", use_container_width=True):
+    with st.popover("Update data", width="stretch"):
         st.file_uploader(
             "Survey CSV",
             type=["csv"],
@@ -613,11 +613,11 @@ with filter_upload:
                     data=upload_duplicate_report.to_csv(index=False).encode("utf-8"),
                     file_name="survey_duplicate_report.csv",
                     mime="text/csv",
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 st.info("Duplicate check passed: no repeated rows, IDs, or coordinates.")
-        if st.button("Use bundled dataset", use_container_width=True):
+        if st.button("Use bundled dataset", width="stretch"):
             st.session_state["uploaded_dataset"] = None
             st.rerun()
         st.markdown("**Geotagged photo evidence**")
@@ -625,7 +625,7 @@ with filter_upload:
             "Site photographs", type=["jpg", "jpeg", "png"], accept_multiple_files=True,
             key="photo_evidence_upload", help="GPS EXIF metadata is required; web copies are compressed automatically.",
         )
-        if photo_uploads and st.button("Process photo evidence", use_container_width=True):
+        if photo_uploads and st.button("Process photo evidence", width="stretch"):
             saved_count, photo_errors = save_photo_evidence(photo_uploads)
             if saved_count:
                 st.success(f"Saved {saved_count} new geotagged photographs.")
@@ -635,7 +635,7 @@ with filter_upload:
                 st.rerun()
 with filter_delivery:
     st.markdown("<div style='height:1.52rem'></div>", unsafe_allow_html=True)
-    with st.popover("Deliverables", use_container_width=True):
+    with st.popover("Deliverables", width="stretch"):
         st.markdown("#### Project deliverables")
         st.caption("Report, A1 maps, GIS vectors and the complete client package in one location.")
         delivery_download(
@@ -750,7 +750,7 @@ with diagnostic_col:
             selected_photo = photo_evidence.loc[photo_labels[selected_photo_label]]
             web_image = PHOTO_ROOT / str(selected_photo["web_image"])
             if web_image.exists():
-                st.image(str(web_image), caption=selected_photo["original_name"], use_container_width=True)
+                st.image(str(web_image), caption=selected_photo["original_name"], width="stretch")
             st.caption(
                 f"Evidence ID: {selected_photo['photo_id']} · "
                 f"Captured: {selected_photo.get('captured_at', '')} · "
@@ -759,9 +759,9 @@ with diagnostic_col:
             if web_image.exists():
                 st.download_button(
                     "Download selected photograph", web_image.read_bytes(), web_image.name,
-                    "image/jpeg", use_container_width=True,
+                    "image/jpeg", width="stretch",
                 )
             st.download_button(
                 "Download evidence manifest", photo_evidence.to_csv(index=False).encode("utf-8"),
-                "photo_evidence_manifest.csv", "text/csv", use_container_width=True,
+                "photo_evidence_manifest.csv", "text/csv", width="stretch",
             )
